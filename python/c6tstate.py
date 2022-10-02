@@ -4,6 +4,7 @@ import lexer
 import symtab
 
 
+# pylint: disable=too-many-instance-attributes
 class ParseState:
     """Shared state for the C6T frontend parser."""
 

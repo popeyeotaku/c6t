@@ -52,13 +52,14 @@ class TestExpr(unittest.TestCase):
             symbol,
             Symbol(Storage.EXTERN, "foo", TypeString(Type.FUNC, Type.INT), local=True),
         )
+        namenode = Node("name", TypeString(Type.FUNC, Type.INT), value=symbol)
         other = inode(
             "call",
-            Node("name", TypeString(Type.FUNC, Type.INT), value=symbol),
+            namenode,
             Node(
                 "addr",
                 TypeString(Type.POINT, Type.FUNC, Type.INT),
-                [Node("name", TypeString(Type.FUNC, Type.INT), value=symbol)],
+                [namenode],
             ),
         )
         self.assertEqual(node, other)
