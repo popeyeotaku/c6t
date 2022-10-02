@@ -76,6 +76,14 @@ def expression(
     return node
 
 
+def conexpr(state:ParseState, *, seecommas:bool=True) -> int:
+    """Parse a constant expression."""
+    node = expression(state, seecommas=seecommas)
+    if node.label != 'con':
+        state.error('expected constant expression')
+        return 1 # Good default for arrays
+    return node.value
+
 def build(state: ParseState, label: str, *childargs: Node) -> Node:
     """Construct a non-leaf node with type conversions."""
     if len(childargs) > 0:

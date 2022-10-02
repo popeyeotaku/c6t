@@ -4,6 +4,10 @@ import lexer
 import symtab
 
 
+class C6TCrash(BaseException):
+    """The C6T compiler crashed."""
+
+
 # pylint: disable=too-many-instance-attributes
 class ParseState:
     """Shared state for the C6T frontend parser."""
@@ -26,6 +30,22 @@ class ParseState:
             self.error("missing expected token")
             return None
         return match
+
+    def peekmatch(self, *labels: str) -> bool:
+        """Return a flag if the next symbol, which is NOT advanced past and IS
+        returned to the input stream, matches any of the labels.
+        """
+        return self.peek().label in labels
+
+    def earlyeof(self) -> None:
+        """If we match EOF, crash the compiler."""
+        if self.eof():
+            self.crash("unexpected end of file")
+
+    def crash(self, msg: str, line: int | None = None) -> None:
+        """Issue an error message and crash."""
+        self.error(msg, line)
+        raise C6TCrash(msg)
 
     def static(self) -> int:
         """Return the next static label number."""
