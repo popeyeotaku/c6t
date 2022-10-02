@@ -14,6 +14,22 @@ class ParseState:
         self.errcount = 0
         self.localscope: bool = False
         self.symtab: dict[str, symtab.Symbol] = {}
+        self.curstatic = 0
+        self.tags: dict[str, symtab.Symbol] = {}
+
+    def need(self, *labels: str) -> lexer.Token | None:
+        """If the next token does not match any label, report an error and
+        return None. If it does match a label, return the token.
+        """
+        if not (match := self.match(*labels)):
+            self.error("missing expected token")
+            return None
+        return match
+
+    def static(self) -> int:
+        """Return the next static label number."""
+        self.curstatic += 1
+        return self.curstatic
 
     def error(self, msg: str, line: int | None = None) -> None:
         """Output an error message."""

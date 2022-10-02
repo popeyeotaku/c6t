@@ -12,6 +12,8 @@ class Storage(enum.Enum):
     EXTERN = enum.auto()
     STATIC = enum.auto()
     REGISTER = enum.auto()
+    STRUCT = enum.auto()
+    MEMBER = enum.auto()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -20,4 +22,6 @@ class Symbol:
 
     storage: Storage
     offset: int | str
-    type: type6.TypeString
+    typestr: type6.TypeString
+    local: bool = False
+    undef: bool = False
