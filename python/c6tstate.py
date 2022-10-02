@@ -140,7 +140,7 @@ class ParseState:
         """Append the label into the IR text so that it is defined at the
         current position.
         """
-        self.out_ir += f"{label}:\t"
+        self.out_ir += f"{label}:\n"
 
     def pseudo(self, opcode: str, *operands: str) -> None:
         """Append the given pseudo-op to the IR text."""

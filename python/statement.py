@@ -113,6 +113,7 @@ def defaultstate(state: ParseState, stks: StateStks) -> None:
 
 def breakstate(state: ParseState, stks: StateStks) -> None:
     """Parse a break statement."""
+    state.need(";")
     if not stks["brkstk"]:
         state.error("nothing to break to")
     else:
@@ -121,26 +122,44 @@ def breakstate(state: ParseState, stks: StateStks) -> None:
 
 def contstate(state: ParseState, stks: StateStks) -> None:
     """Parse a continue statement."""
+    state.need(";")
     if not stks["contstk"]:
         state.error("nothing to continue to")
     else:
         state.jmpstatic(stks["contstk"][-1])
 
 
+# pylint:disable=unused-argument
 def retstate(state: ParseState, stks: StateStks) -> None:
     """Parse a return statement."""
-    raise NotImplementedError
+    if state.match(";"):
+        retnull(state)
+    else:
+        outexpr.outexpr(state, parenexpr(state))
+        state.need(";")
+        state.asm("ret")
 
 
+# pylint:disable=unused-argument
 def gotostate(state: ParseState, stks: StateStks) -> None:
     """Parse a goto statement."""
-    raise NotImplementedError
+    node = expr.expression(state)
+    state.need(";")
+    outexpr.outexpr(state, node)
+    state.asm("goto")
 
 
 # pylint:disable=unused-argument
 def nullstate(state: ParseState, stks: StateStks) -> None:
     """Parse a null statement."""
     return
+
+
+def cmpstate(state: ParseState, stks: StateStks) -> None:
+    """Parse a compound statement."""
+    while not state.match("}"):
+        state.earlyeof()
+        statement(state, stks)
 
 
 STATEMENTS: dict[str, StateFunc] = {
@@ -156,11 +175,13 @@ STATEMENTS: dict[str, StateFunc] = {
     "return": retstate,
     "goto": gotostate,
     ";": nullstate,
+    "{": cmpstate,
 }
 
 
 def statement(state: ParseState, stks: StateStks | None = None) -> None:
     """Parse a single statement recursively."""
+    assert state.localscope is True
     if stks is None:
         stks = {"contstk": [], "brkstk": [], "casestk": []}
     if tkn := state.match(*STATEMENTS.keys()):
@@ -172,21 +193,21 @@ def statement(state: ParseState, stks: StateStks | None = None) -> None:
                 statement(state, stks)
                 return
             state.unsee(tkn)
-    exprstate(state)
+        exprstate(state)
 
 
 def gotolab(state: ParseState, name: str, stks: StateStks) -> None:
     """Parse a goto label."""
-    static = state.static()
     if name in state.symtab:
         symbol = state.symtab[name]
         if symbol.undef:
             symbol.undef = False
         if symbol.storage != Storage.STATIC:
             state.error(f"redefined goto label {name}")
-        else:
-            symbol.offset = static
+        assert isinstance(symbol.offset, int)
+        static = symbol.offset
     else:
+        static = state.static()
         symbol = Symbol(
             Storage.STATIC,
             static,
