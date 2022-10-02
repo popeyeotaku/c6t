@@ -63,11 +63,9 @@ class TypeString(typing.Sequence[TypeElem]):
         return f"{self.__class__.__name__}({','.join((repr(elem) for elem in self))})"
 
     def __init__(self, *elems: TypeElem | Type) -> None:
-        self._elems: list[TypeElem] = []
-        for elem in elems:
-            if isinstance(elem, Type):
-                elem = TypeElem(elem)
-            self._elems.append(elem)
+        self._elems = tuple(
+            (TypeElem(elem) if isinstance(elem, Type) else elem for elem in elems)
+        )
         if len(self._elems) < 1:
             raise ValueError("must contain at least one TypeElem")
         if self._elems[-1].label not in BASE:
@@ -75,6 +73,14 @@ class TypeString(typing.Sequence[TypeElem]):
         if any((elem.label not in MOD for elem in self._elems[:-1])):
             raise ValueError("all elements preceeding base type must be mod types")
 
+    def __hash__(self) -> int:
+        return hash(self._elems)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, TypeString):
+            return NotImplemented
+        return len(self) == len(other) and tuple(self) == tuple(other)
+    
     def __len__(self) -> int:
         return len(self._elems)
 

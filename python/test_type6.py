@@ -56,3 +56,20 @@ class TypeTest(unittest.TestCase):
         self.assertFalse(typestr.integral)
         self.assertFalse(typestr.floating)
         self.assertFalse(typestr.pointer)
+
+    def test_eq(self):
+        """Test type string compare and hashes."""
+        typestrs = (
+            TypeString(Type.POINT, Type.INT),
+            TypeString(Type.POINT, Type.INT),
+            TypeString(TypeElem(Type.ARRAY, 10), Type.POINT, Type.FUNC, Type.INT),
+            TypeString(TypeElem(Type.ARRAY, 5), Type.POINT, Type.FUNC, Type.INT),
+        )
+        self.assertEqual(typestrs[0], typestrs[1])
+        self.assertNotEqual(typestrs[0], typestrs[2])
+        self.assertNotEqual(typestrs[1], typestrs[3])
+        self.assertNotEqual(typestrs[2], typestrs[3])
+        self.assertEqual(hash(typestrs[0]), hash(typestrs[1]))
+        self.assertNotEqual(hash(typestrs[0]), hash(typestrs[3]))
+        self.assertNotEqual(hash(typestrs[1]), hash(typestrs[2]))
+        self.assertNotEqual(hash(typestrs[2]), hash(typestrs[3]))
