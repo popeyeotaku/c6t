@@ -17,6 +17,9 @@ def inode(label: str, *children: Node, value: typing.Any = None) -> Node:
 class TestExpr(unittest.TestCase):
     """Test expression parser."""
 
+    def test_rshift(self):
+        self.dotest("(-10)>>3", inode("con", value=0xFFFE))
+
     def parse(self, source: str):
         """Parse a C expression source."""
         state = ParseState(source)

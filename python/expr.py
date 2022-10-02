@@ -259,7 +259,7 @@ def fold(node: Node) -> Node:
             return con(cons[0] << cons[1])
         case "rshift":
             if cons[0] & 0x8000:
-                cons[0] = -cons[0]
+                cons[0] = -((cons[0]^0xFFFF)+1)
             return con(cons[0] >> cons[1])
         case "neg":
             return con(-cons[0])
