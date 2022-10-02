@@ -59,6 +59,9 @@ class TypeElem:
 class TypeString(typing.Sequence[TypeElem]):
     """A string describing a C6T type."""
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({','.join((repr(elem) for elem in self))})"
+
     def __init__(self, *elems: TypeElem | Type) -> None:
         self._elems: list[TypeElem] = []
         for elem in elems:
