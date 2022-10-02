@@ -13,20 +13,29 @@ from typing import Callable
 
 from c6tstate import ParseState
 from expr import conexpr
-from symtab import Storage
+from symtab import Storage, Symbol
 from type6 import Type, TypeElem, TypeString
 
 
 def extdef(state: ParseState):
     """Parse an external definition."""
+    assert state.localscope is False
     typedecl_list(state, extdef_callback, need_typeclass=True)
 
 
-TypeDeclCallback = Callable[[ParseState, int, str, list[str], TypeString], bool]
+TypeDeclCallback = Callable[
+    [ParseState, int, str, list[str], TypeString, Storage], bool
+]
 
 
+# pylint:disable=unused-argument, too-many-arguments
 def extdef_callback(
-    state: ParseState, count: int, name: str, args: list[str], typestr: TypeString
+    state: ParseState,
+    count: int,
+    name: str,
+    args: list[str],
+    typestr: TypeString,
+    storage: Storage,
 ) -> bool:
     """Callback function for an external definition. Return a flag for if we
     should end the typedecl list parsing immediately or not.
@@ -39,7 +48,24 @@ def extdef_callback(
 
 
 def datadef(state: ParseState, name: str, typestr: TypeString) -> None:
-    """Parse a data definition, with a possible initializer."""
+    """Parse an externaldata definition, with a possible initializer."""
+    symbol = Symbol(Storage.EXTERN, name, typestr)
+    state.redef(name)
+    state.symtab[name] = symbol
+    if symbol.typestr[0].label == Type.FUNC:
+        return
+    if state.peekmatch(",", ";"):
+        state.pseudo("common", "_" + name, str(typestr.size))
+    else:
+        datainit(state, name, typestr)
+
+
+def datainit(state: ParseState, name: str, typestr: TypeString) -> None:
+    """Parse a data initializer.
+
+    The symbol table entry has already been filled, remember to adjust it if
+    necessary (array bounds changed, etc).
+    """
     raise NotImplementedError
 
 
@@ -76,7 +102,10 @@ def typedecl_list(
                 state.need(";")
                 break
             gotany = True
-            callback(state, count, name, args, typestr)
+            if callback(state, count, name, args, typestr, storage):
+                break
+            if not state.peekmatch(";"):
+                state.need(",")
             count += 1
 
 

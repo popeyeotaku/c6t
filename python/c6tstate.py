@@ -3,6 +3,8 @@
 import lexer
 import symtab
 
+MAXREGS: int = 3
+
 
 class C6TCrash(BaseException):
     """The C6T compiler crashed."""
@@ -21,6 +23,13 @@ class ParseState:
         self.symtab: dict[str, symtab.Symbol] = {}
         self.curstatic = 0
         self.tags: dict[str, symtab.Symbol] = {}
+        self.auto_offset: int = 0
+        self.usedregs: int = 0
+
+    def redef(self, name: str) -> None:
+        """Output a redefinition error if the symbol name already exists."""
+        if name in self.symtab:
+            self.error(f"redefined name {name}")
 
     def need(self, *labels: str) -> lexer.Token | None:
         """If the next token does not match any label, report an error and
@@ -93,7 +102,7 @@ class ParseState:
         """Append the given IR assembly into the IR text."""
         line = f"\t{opcode}"
         if operands:
-            line += f'\t{",".join(*operands)}'
+            line += f' {",".join(operands)}'
         self.out_ir += f"{line}\n"
 
     def deflabel(self, label: str) -> None:
