@@ -11,6 +11,7 @@ gets passed a callback function for different situations.
 
 from typing import Callable
 
+import statement
 from c6tstate import ParseState
 from expr import conexpr
 from symtab import Storage, Symbol
@@ -71,7 +72,24 @@ def datainit(state: ParseState, name: str, typestr: TypeString) -> None:
 
 def funcdef(state: ParseState, name: str, args: list[str], typestr: TypeString) -> None:
     """Parse a function definition."""
+    state.golocal()
+    grabparams(state, args)
+    state.need("{")
+    grablocals(state)
+    while not state.match("}"):
+        state.earlyeof()
+        statement.statement(state)
+    statement.retnull(state)
+    state.exitlocal()
+
+
+def grabparams(state: ParseState, args: list[str]) -> None:
+    """Parse parameter type declarations."""
     raise NotImplementedError
+
+
+def grablocals(state: ParseState) -> None:
+    """Parse local declarations."""
 
 
 def typedecl_list(

@@ -26,6 +26,37 @@ class ParseState:
         self.auto_offset: int = 0
         self.usedregs: int = 0
 
+    def golocal(self) -> None:
+        """Enter local state."""
+        self.localscope = True
+        self.auto_offset = 0
+        self.usedregs = 0
+
+    def exitlocal(self) -> None:
+        """Exit local state."""
+        for table in self.symtab, self.tags:
+            for name, symbol in table.items():
+                if symbol.undef:
+                    self.error(f"undefined name {name}")
+                if symbol.local:
+                    del table[name]
+        self.localscope = False
+
+    def jmpstatic(self, label: int) -> None:
+        """Jump to a static label."""
+        assert label > 0
+        self.asm("jmp", f"L{label}")
+
+    def brz(self, label: int) -> None:
+        """Assemble a brz to a static label."""
+        assert label > 0
+        self.asm("brz", f"L{label}")
+
+    def defstatic(self, label: int) -> None:
+        """Define a static label here."""
+        assert label > 0
+        self.deflabel(f"L{label}")
+
     def redef(self, name: str) -> None:
         """Output a redefinition error if the symbol name already exists."""
         if name in self.symtab:
