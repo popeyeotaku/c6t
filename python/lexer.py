@@ -88,11 +88,57 @@ KEYWORDS = {
     "entry",
 }
 
-OPERATORS = {
-    "{": "lbrace",
-    "}": "rbrace",
-    ";": "semicolon",
-}
+OPERATORS = sorted(
+    [
+        "{",
+        "}",
+        ";",
+        ",",
+        "=",
+        "=+",
+        "=-",
+        "=*",
+        "=/",
+        "=%",
+        "=>>",
+        "=<<",
+        "=&",
+        "=^",
+        "=|",
+        "?",
+        ":",
+        "||",
+        "&&",
+        "|",
+        "^",
+        "&",
+        "==",
+        "!=",
+        "<",
+        ">",
+        "<=",
+        ">=",
+        ">>",
+        "<<",
+        "+",
+        "-",
+        "*",
+        "/",
+        "%",
+        "!",
+        "~",
+        "++",
+        " --",
+        "(",
+        ")",
+        "[",
+        "]",
+        ".",
+        "->",
+    ],
+    key=len,
+    reverse=True,
+)
 
 RE_NAME = r"[a-zA-Z_][a-zA-Z_0-9]*"
 RE_FCON = r"([0-9]*\.[0-9]+([eE][+-]?[0-9]+)?)|([0-9]+[eE][+-]?[0-9]+)"
@@ -122,17 +168,31 @@ class Tokenizer:
     def __next__(self) -> Token:
         self._whitespace()
         if self.source.eof:
-            return self._token("eof")
-        if token := self._name():
-            return token
-        if token := self._fcon():
+            token = self._token("eof")
+        elif token := self._name():
+            pass
+        elif token := self._fcon():
             # Try a float first since otherwise it may be mistaken for a CON.
-            return token
-        if token := self._con():
-            return token
-        if token := self._operator():
-            return token
-        raise ValueError(f"invalid input character {self.source.popchar()}")
+            pass
+        elif token := self._con():
+            pass
+        elif token := self._operator():
+            pass
+        elif token := self._charcon():
+            pass
+        elif token := self._string():
+            pass
+        else:
+            raise ValueError(f"invalid input character {self.source.popchar()}")
+        return token
+
+    def _charcon(self) -> Token | None:
+        """Try to parse a character constant."""
+        raise NotImplementedError
+
+    def _string(self) -> Token | None:
+        """Try to parse a string."""
+        raise NotImplementedError
 
     def _name(self) -> Token | None:
         """Try to parse a NAME token."""
@@ -162,8 +222,8 @@ class Tokenizer:
 
     def _operator(self) -> Token | None:
         """Try to parse an operator token."""
-        if operator := self.source.matchlit(*OPERATORS.keys()):
-            return self._token(OPERATORS[operator])
+        if operator := self.source.matchlit(*OPERATORS):
+            return self._token(operator)
         return None
 
     def _whitespace(self) -> None:

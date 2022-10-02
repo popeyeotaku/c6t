@@ -47,6 +47,23 @@ class ParseState:
         """Return a token to the input stream."""
         self._peeked.append(token)
 
+    def asm(self, opcode: str, *operands: str) -> None:
+        """Append the given IR assembly into the IR text."""
+        line = f"\t{opcode}"
+        if operands:
+            line += f'\t{",".join(*operands)}'
+        self.out_ir += f"{line}\n"
+
+    def deflabel(self, label: str) -> None:
+        """Append the label into the IR text so that it is defined at the
+        current position.
+        """
+        self.out_ir += f"{label}:\t"
+
+    def pseudo(self, opcode: str, *operands: str) -> None:
+        """Append the given pseudo-op to the IR text."""
+        self.asm(f".{opcode}", *operands)
+
     def match(self, *labels: str) -> lexer.Token | None:
         """If the next token matches any of the labels, return the matching
         token. Else, return None.
