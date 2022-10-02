@@ -12,8 +12,10 @@ class ParseState:
         self.out_ir = ""
         self.errcount = 0
 
-    def error(self, msg: str) -> None:
+    def error(self, msg: str, line: int | None = None) -> None:
         """Output an error message."""
+        if line is None:
+            line = self.line()
         print(f"ERROR {self.line()}: {msg}")
         self.errcount += 1
 
