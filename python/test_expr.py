@@ -29,17 +29,6 @@ class TestExpr(unittest.TestCase):
         """Test a single expression."""
         self.assertEqual(self.parse(source), node)
 
-    def test_expr(self):
-        """Some basic expression tests."""
-        self.dotest(
-            "2+15/3",
-            inode(
-                "add",
-                inode("con", value=2),
-                inode("div", inode("con", value=15), inode("con", value=3)),
-            ),
-        )
-
     def test_call(self):
         """Test a call expression."""
         state = ParseState("foo(foo)")

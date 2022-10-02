@@ -98,35 +98,175 @@ def conexpr(state: ParseState, *, seecommas: bool = True) -> int:
 
 def build(state: ParseState, label: str, *childargs: Node) -> Node:
     """Construct a non-leaf node with type conversions."""
-    if len(childargs) > 0:
-        children = [childargs[0]]
+    children: list[Node] = list(childargs)
+    if len(children) > 1:
+        for i, child in enumerate(children[1:]):
+            children[i + 1] = fixfunc(fixarray(child))
+    if children:
         if label != "addr":
             children[0] = fixarray(children[0])
-        if label not in opinfo.CALL:
-            children[0] = fixfunc(children[0])
-        children.extend([fixarray(fixfunc(child)) for child in childargs[1:]])
-    else:
-        children = []
+            if label not in opinfo.CALL:
+                children[0] = fixfunc(children[0])
 
     if label == "":
         return children[0]
 
-    if any((node.typestr.floating for node in children)):
-        typestr = TypeString(Type.DOUBLE)
-    elif any((node.typestr.pointer for node in children)):
-        pointers = [node for node in children if node.typestr.pointer]
-        typestr = pointers[0].typestr
-    else:
+    typestr = TypeString(Type.INT)
+
+    left = children[0] if children else None
+    right = children[1] if len(children) > 1 else None
+
+    # Special cases
+    match label:
+        case "cond":
+            assert left and right
+            if right.label != "colon":
+                state.error("bad conditional operator")
+            return Node(label, right.typestr, children)
+        case "comma" | "logand" | "logor":
+            return Node(label, typestr, children)
+        case "call" | "ucall":
+            assert left is not None
+            if left.typestr[0].label != Type.FUNC:
+                state.error("call of non-function")
+            return Node(label, left.typestr.pop(), children)
+        case "deref":
+            assert left is not None
+            if left.label == "addr":
+                return left
+            if not left.typestr.pointer:
+                state.error("deref of non-pointer")
+            return Node(label, left.typestr.pop(), children)
+        case "addr":
+            assert left is not None
+            if left.label == "deref":
+                node = left.copy()
+                node.typestr = TypeString(Type.POINT, *node.typestr)
+                return node
+            if left.label not in opinfo.ISLVAL:
+                state.error("expected an lval")
+            return Node(label, TypeString(Type.POINT, *left.typestr))
+        case _:
+            pass
+    if label in opinfo.NEEDLVAL:
+        assert left is not None
+        if left.label not in opinfo.ISLVAL:
+            state.error("expected an lval")
+    if label in opinfo.UNARY:
+        assert left is not None and right is None
+        if label == "toflt":
+            typestr = TypeString(Type.DOUBLE)
+        elif label == "toint":
+            typestr = TypeString(Type.INT)
+        else:
+            typestr = left.typestr
+        return fold(Node(label, typestr, children))
+
+    assert left and right
+
+    if left.typestr[0].label == Type.STRUCT or right.typestr[0].label == Type.STRUCT:
+        state.error("illegal structure operation")
+        left.typestr = TypeString(Type.INT)
+        right.typestr = TypeString(Type.INT)
+
+    conversion: Type | None = stdconv(left, right)
+    pntlab = "mult"
+
+    if label in opinfo.ASSIGNS:
+        typestr = left.typestr
+        if conversion == Type.POINT:
+            conversion = None
+        # TODO: check original leftc algorithm here
+    elif label == "colon" and left.typestr.pointer and left.typestr == right.typestr:
+        conversion = None
+    elif label in opinfo.CMP:
+        if label in opinfo.LESSGREAT and conversion == Type.POINT:
+            label = "u" + label
+        if conversion == Type.POINT:
+            conversion = None
+    if conversion == Type.POINT:
+        if label == "sub":
+            typestr = TypeString(Type.INT)
+            pntlab = "div"
+    match conversion:
+        case None:
+            pass
+        case Type.INT:
+            if left.typestr.floating:
+                left = build(state, "toint", left)
+            if right.typestr.floating:
+                right = build(state, "toint", right)
+        case Type.POINT:
+            if left.typestr.pointer:
+                typestr = left.typestr
+                right = Node(pntlab, typestr, [right, con(typestr.sizenext())])
+            else:
+                typestr = right.typestr
+                left = Node(pntlab, typestr, [left, con(typestr.sizenext())])
+        case Type.FLOAT:
+            typestr = TypeString(Type.DOUBLE)
+            if not left.typestr.floating:
+                left = build(state, "toflt", left)
+            elif not right.typestr.floating:
+                right = build(state, "toflt", right)
+        case _:
+            raise ValueError(conversion)
+    if label in opinfo.ISINT:
         typestr = TypeString(Type.INT)
+    return fold(Node(label, typestr, [left, right]))
 
-    if label in opinfo.CALL:
-        if children[0].typestr[0].label != Type.FUNC:
-            state.error("call of non-function")
-        typestr = children[0].typestr.pop()
 
-    node = Node(label, typestr, list(children))
+def stdconv(
+    left: Node, right: Node
+) -> typing.Literal[Type.INT] | typing.Literal[Type.FLOAT] | typing.Literal[Type.POINT]:
+    """Given two nodes, return the proper type conversion type for standard conversions.
 
-    return node
+    Standard conversions are: if either is floating type, the type is floating. Else if
+    either is pointer, the type is pointer. Else the type is int.
+    """
+    if left.typestr.floating or right.typestr.floating:
+        return Type.FLOAT
+    if left.typestr.pointer or right.typestr.pointer:
+        return Type.POINT
+    return Type.INT
+
+
+def fold(node: Node) -> Node:
+    """Try to constant fold a node, returning the folded version if so, else
+    the original node.
+    """
+    if any((node.label != "con" for node in node.children)):
+        return node
+    cons = [child.value for child in node.children]
+    match node.label:
+        case "add":
+            return con(sum(cons))
+        case "sub":
+            return con(cons[0] - cons[1])
+        case "mult":
+            return con(cons[0] * cons[1])
+        case "div":
+            return con(cons[0] // cons[1])
+        case "mod":
+            return con(cons[0] % cons[1])
+        case "and":
+            return con(cons[0] & cons[1])
+        case "or":
+            return con(cons[0] | cons[1])
+        case "eor":
+            return con(cons[0] ^ cons[1])
+        case "lshift":
+            return con(cons[0] << cons[1])
+        case "rshift":
+            if cons[0] & 0x8000:
+                cons[0] = -cons[0]
+            return con(cons[0] >> cons[1])
+        case "neg":
+            return con(-cons[0])
+        case "compl":
+            return con(cons[0] ^ 0xFFFF)
+        case _:
+            return node
 
 
 def fixarray(node: Node) -> Node:

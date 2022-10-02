@@ -4,7 +4,20 @@ import lexer
 
 CALL = {"call", "ucall"}
 
-UNARY = ("neg", "not", "addr", "deref", "preinc", "predec", "postinc", "postdec")
+ASSIGNS = {*lexer.ASSIGNS.values()}
+
+UNARY = (
+    "neg",
+    "not",
+    "addr",
+    "deref",
+    "preinc",
+    "predec",
+    "postinc",
+    "postdec",
+    "toint",
+    "toflt",
+)
 
 COMMUTATIVE = {"add", "mult", "and", "or", "eor"}
 
@@ -24,3 +37,9 @@ SUPPORTS_FLOAT = {
     "equ",
     "nequ",
 }
+
+LESSGREAT = {"less", "great", "lequ", "gequ"}
+
+CMP = {*LESSGREAT, "equ", "nequ"}
+
+ISINT = {*CMP}

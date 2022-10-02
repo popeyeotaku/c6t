@@ -59,6 +59,8 @@ def asmexpr(state: ParseState, node: Node) -> None:
         for child in node[1:]:
             asmexpr(state, child)
             rval(state, child)
+    if node.label not in OPCODES:
+        raise ValueError(node.label)
     opcode = OPCODES[node.label]
     if opcode in opinfo.SUPPORTS_FLOAT and any(
         (node.typestr.floating) for node in [node] + node.children
