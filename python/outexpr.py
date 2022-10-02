@@ -1,30 +1,70 @@
 """C6T - C version 6 by Troy - Expression Ouptut"""
 
 from typing import Literal
+
+import lexer
+import opinfo
 from c6tstate import ParseState
 from expr import Node
-from symtab import Symbol, Storage
-from type6 import TypeString, Type
-import opinfo
+from symtab import Storage, Symbol
+from type6 import Type, TypeString
 
 TypeChar = Literal[""] | Literal["c"] | Literal["f"] | Literal["d"]
 
-OPCODES: dict[str, str] = {}
+OPCODES: dict[str, str] = {
+    "neg": "neg",
+    "not": "lognot",
+    "mult": "mult",
+    "div": "div",
+    "mod": "mod",
+    "add": "add",
+    "sub": "sub",
+    "rshift": "rshift",
+    "lshift": "lshift",
+    "less": "less",
+    "great": "great",
+    "lequ": "lequ",
+    "gequ": "gequ",
+    "uless": "uless",
+    "ugreat": "ugreat",
+    "ulequ": "ulequ",
+    "ugequ": "ugequ",
+    "equ": "equ",
+    "nequ": "nequ",
+    "and": "and",
+    "or": "or",
+    "eor": "eor",
+    "logand": "logand",
+    "logor": "logor",
+    "comma": "comma",
+}
+OPCODES.update({assign: assign for assign in lexer.ASSIGNS.values()})
 
 
 def outexpr(state: ParseState, node: Node) -> None:
-    """Output assembly for an expression tree."""
+    """Output assembly for an expression tree, then rval it."""
+    asmexpr(state, node)
+    rval(state, node)
+
+
+def asmexpr(state: ParseState, node: Node) -> None:
+    """Output assembly for an expression node, recursively down its childdren."""
     if special(state, node):
         return
     if node.children:
-        outexpr(state, node[0])
+        asmexpr(state, node[0])
         label = node[0].label
         if label not in opinfo.NEEDLVAL:
             rval(state, node[0])
         for child in node[1:]:
-            outexpr(state, child)
+            asmexpr(state, child)
             rval(state, child)
-    state.asm(OPCODES[node.label])
+    opcode = OPCODES[node.label]
+    if opcode in opinfo.SUPPORTS_FLOAT and any(
+        (node.typestr.floating) for node in [node] + node.children
+    ):
+        opcode = "f" + opcode
+    state.asm(opcode)
 
 
 def rval(state: ParseState, node: Node) -> None:
@@ -57,7 +97,9 @@ def special(state: ParseState, node: Node) -> bool:
     """
     match node.label:
         case "addr" | "deref":
-            outexpr(state, node[0])
+            asmexpr(state, node[0])
+        case "cond":
+            raise NotImplementedError
         case "name":
             symbol: Symbol = node.value
             match symbol.storage:
@@ -75,6 +117,18 @@ def special(state: ParseState, node: Node) -> bool:
             state.asm("con", str(node.value))
         case "fcon":
             state.asm("fcon", str(node.value))
+        case "ucall":
+            asmexpr(state, node[0])
+            state.asm("ucall")
+        case "call":
+            asmexpr(state, node[0])
+            asmexpr(state, node[1])
+            rval(state, node[1])
+            state.asm("call")
+        case "preinc" | "predec" | "postinc" | "postdec":
+            asmexpr(state, node[0])
+            state.asm("con", str(node[0].typestr.sizenext()))
+            state.asm(node.label)
         case _:
             return False
     return True

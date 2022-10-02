@@ -11,7 +11,7 @@ class TypeTest(unittest.TestCase):
         """Test the sizes of different type strings."""
         typestr = TypeString(Type.POINT, Type.INT)
         self.assertEqual(typestr.size, 2)
-        self.assertEqual(typestr.sizenext, 2)
+        self.assertEqual(typestr.sizenext(), 2)
         typestr = TypeString(
             TypeElem(Type.ARRAY, 10),
             TypeElem(Type.ARRAY, 10),

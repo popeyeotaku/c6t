@@ -105,10 +105,9 @@ class TypeString(typing.Sequence[TypeElem]):
     def size(self) -> int:
         """Return the size in bytes of the type string."""
         if self[0].label == Type.ARRAY:
-            return self.sizenext * self[0].size
+            return self.sizenext() * self[0].size
         return self[0].size
 
-    @functools.cached_property
     def sizenext(self) -> int:
         """Return the size in bytes in all elements after the first."""
         return self.pop().size
