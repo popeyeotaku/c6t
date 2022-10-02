@@ -1,6 +1,7 @@
 """C6T - C version 6 by Troy - Shared Parser State"""
 
 import lexer
+import symtab
 
 
 class ParseState:
@@ -11,6 +12,8 @@ class ParseState:
         self._peeked: list[lexer.Token] = []
         self.out_ir = ""
         self.errcount = 0
+        self.localscope: bool = False
+        self.symtab: dict[str, symtab.Symbol] = {}
 
     def error(self, msg: str, line: int | None = None) -> None:
         """Output an error message."""
