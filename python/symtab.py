@@ -16,12 +16,12 @@ class Storage(enum.Enum):
     MEMBER = enum.auto()
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass
 class Symbol:
     """A C6T symbol table entry."""
 
     storage: Storage
     offset: int | str
     typestr: type6.TypeString
-    local: bool = False
-    undef: bool = False
+    local: bool = dataclasses.field(default=False, kw_only=True)
+    undef: bool = dataclasses.field(default=False, kw_only=True)

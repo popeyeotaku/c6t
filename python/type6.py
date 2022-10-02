@@ -79,8 +79,8 @@ class TypeString(typing.Sequence[TypeElem]):
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, TypeString):
             return NotImplemented
-        return len(self) == len(other) and tuple(self) == tuple(other)
-    
+        return self._elems == tuple(other)
+
     def __len__(self) -> int:
         return len(self._elems)
 
@@ -97,9 +97,8 @@ class TypeString(typing.Sequence[TypeElem]):
             return self.__class__(*self._elems[i])
         return self._elems[i]
 
-    @functools.cached_property
-    def popped(self) -> Self:
-        """A copy of the type string with the first element removed."""
+    def pop(self) -> Self:
+        """Return a copy of the type string with the first element removed."""
         return self[1:]
 
     @functools.cached_property
@@ -112,7 +111,7 @@ class TypeString(typing.Sequence[TypeElem]):
     @functools.cached_property
     def sizenext(self) -> int:
         """Return the size in bytes in all elements after the first."""
-        return self.popped.size
+        return self.pop().size
 
     @functools.cached_property
     def integral(self) -> bool:

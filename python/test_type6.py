@@ -20,10 +20,10 @@ class TypeTest(unittest.TestCase):
             Type.INT,
         )
         self.assertEqual(typestr.size, 10 * 10 * 2)
-        self.assertEqual(typestr.popped.size, 10 * 2)
-        self.assertEqual(typestr.popped.popped.size, 2)
-        self.assertEqual(typestr.popped.popped.popped.size, 0)
-        self.assertEqual(typestr.popped.popped.popped.popped.size, 2)
+        self.assertEqual(typestr.pop().size, 10 * 2)
+        self.assertEqual(typestr.pop().pop().size, 2)
+        self.assertEqual(typestr.pop().pop().pop().size, 0)
+        self.assertEqual(typestr.pop().pop().pop().pop().size, 2)
 
     def test_type(self):
         """Test the type info on different type strings."""
@@ -31,15 +31,15 @@ class TypeTest(unittest.TestCase):
         self.assertFalse(typestr.floating)
         self.assertFalse(typestr.integral)
         self.assertFalse(typestr.pointer)
-        typestr = typestr.popped
+        typestr = typestr.pop()
         self.assertTrue(typestr.pointer)
         self.assertFalse(typestr.integral)
         self.assertFalse(typestr.floating)
-        typestr = typestr.popped
+        typestr = typestr.pop()
         self.assertTrue(typestr.pointer)
         self.assertFalse(typestr.integral)
         self.assertFalse(typestr.floating)
-        typestr = typestr.popped
+        typestr = typestr.pop()
         self.assertTrue(typestr.integral)
         self.assertFalse(typestr.floating)
         self.assertFalse(typestr.pointer)

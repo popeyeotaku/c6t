@@ -1,11 +1,14 @@
 """C6T - C version 6 by Troy - Expression Node Parsing"""
 
+from __future__ import annotations
+import copy
 import dataclasses
 import typing
 
 from typing_extensions import Self
 
 import lexer
+import opinfo
 import util
 from c6tstate import ParseState
 from symtab import Storage, Symbol
@@ -18,16 +21,83 @@ class Node:
 
     label: str
     typestr: TypeString
-    children: list[Self] = dataclasses.field(default_factory=list)
+    children: list[Node] = dataclasses.field(default_factory=list)
     value: typing.Any = None
 
     def __getitem__(self, i: int) -> Self:
         return self.children[i]
 
+    def copy(self) -> Self:
+        """Return a duplicated version of the node."""
+        return copy.deepcopy(self)
 
-def build(label: str, *children: Node) -> Node:
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Node):
+            return NotImplemented
+        if (
+            other.label != self.label
+            or other.typestr != self.typestr
+            or other.value != self.value
+        ):
+            return False
+        if len(self.children) != len(other.children):
+            return False
+        if self.label in opinfo.COMMUTATIVE:
+            for child in self.children:
+                if child not in other.children:
+                    return False
+                other.children.remove(child)
+            return True
+        return self.children == other.children
+
+
+def build(state: ParseState, label: str, *childargs: Node) -> Node:
     """Construct a non-leaf node with type conversions."""
-    raise NotImplementedError
+    if len(childargs) > 0:
+        children = [childargs[0]]
+        if label != "addr":
+            children[0] = fixarray(children[0])
+        if label not in opinfo.CALL:
+            children[0] = fixfunc(children[0])
+        children.extend([fixarray(fixfunc(child)) for child in childargs[1:]])
+    else:
+        children = []
+
+    if label == "":
+        return children[0]
+
+    if any((node.typestr.floating for node in children)):
+        typestr = TypeString(Type.DOUBLE)
+    elif any((node.typestr.pointer for node in children)):
+        pointers = [node for node in children if node.typestr.pointer]
+        typestr = pointers[0].typestr
+    else:
+        typestr = TypeString(Type.INT)
+
+    if label in opinfo.CALL:
+        if children[0].typestr[0].label != Type.FUNC:
+            state.error("call of non-function")
+        typestr = children[0].typestr.pop()
+
+    node = Node(label, typestr, list(children))
+
+    return node
+
+
+def fixarray(node: Node) -> Node:
+    """If the node is array type and fits other qualifications, return an
+    'addr' node to it of type pointer to its subtype.
+    """
+    if node.label != "addr" and node.typestr[0].label == Type.ARRAY:
+        node = Node("addr", TypeString(Type.POINT, *node.typestr.pop()), [node])
+    return node
+
+
+def fixfunc(node: Node) -> Node:
+    """Alter a reference to a function to a pointer to it."""
+    if node.label not in opinfo.CALL and node.typestr[0].label == Type.FUNC:
+        node = Node("addr", TypeString(Type.POINT, *node.typestr), [node])
+    return node
 
 
 def getsym(state: ParseState, name: str) -> Symbol:
@@ -76,7 +146,7 @@ def binary(
     def parser(state: ParseState):
         node = subparser(state)
         while tkn := state.match(*labels.keys()):
-            node = build(labels[tkn.label], subparser(state))
+            node = build(state, labels[tkn.label], node, subparser(state))
         return node
 
     return parser
@@ -112,14 +182,14 @@ def expr1(state: ParseState) -> Node:
             case "[":
                 right = expr15(state)
                 state.need("]")
-                node = build("deref", build("add", node, right))
+                node = build(state, "deref", build(state, "add", node, right))
             case "(":
                 if state.match(")"):
-                    node = build("ucall", node)
+                    node = build(state, "ucall", node)
                 else:
                     args = expr15(state)
                     state.need(")")
-                    node = build("call", node, args)
+                    node = build(state, "call", node, args)
             case "." | "->":
                 name = state.need("name")
                 if name is not None:
@@ -134,17 +204,17 @@ def expr2(state: ParseState) -> Node:
     if tkn := state.match("*", "&", "-", "!", "++", "--", "sizeof"):
         match tkn.label:
             case "*":
-                node = build("deref", expr2(state))
+                node = build(state, "deref", expr2(state))
             case "&":
-                node = build("addr", expr2(state))
+                node = build(state, "addr", expr2(state))
             case "-":
-                node = build("neg", expr2(state))
+                node = build(state, "neg", expr2(state))
             case "!":
-                node = build("not", expr2(state))
+                node = build(state, "not", expr2(state))
             case "++":
-                node = build("preinc", expr2(state))
+                node = build(state, "preinc", expr2(state))
             case "--":
-                node = build("predec", expr2(state))
+                node = build(state, "predec", expr2(state))
             case "sizeof":
                 node = con(expr2(state).typestr.size)
             case _:
@@ -153,7 +223,7 @@ def expr2(state: ParseState) -> Node:
         node = expr1(state)
     while tkn := state.match("++", "--"):
         label = "postinc" if tkn.label == "++" else "postdec"
-        node = build(label, node)
+        node = build(state, label, node)
     return node
 
 
@@ -176,7 +246,7 @@ def expr13(state: ParseState) -> Node:
         left = expr12(state)
         state.need(":")
         right = expr12(state)
-        node = build("cond", build("colon", left, right))
+        node = build(state, "cond", build(state, "colon", left, right))
     return node
 
 
@@ -184,8 +254,17 @@ def expr14(state: ParseState) -> Node:
     """Handle assignment operators."""
     node = expr13(state)
     while tkn := state.match(*lexer.ASSIGNS.keys()):
-        node = build(lexer.ASSIGNS[tkn.label], expr14(state))
+        node = build(state, lexer.ASSIGNS[tkn.label], expr14(state))
     return node
 
 
 expr15 = binary(expr14, {",": "comma"})
+
+
+def expression(state: ParseState, *, seecommas: bool = True) -> Node:
+    """Parse an expression."""
+    if seecommas:
+        node = expr15(state)
+    else:
+        node = expr14(state)
+    return build(state, "", node)
