@@ -142,6 +142,20 @@ OPERATORS = sorted(
     reverse=True,
 )
 
+ASSIGNS = {
+    '=': 'assign',
+    '=+': 'asnadd',
+    '=-': 'asnsub',
+    '=*': 'asnmult',
+    '=/': 'asndiv',
+    '=%': 'asnmod',
+    '=>>': 'asnrshift',
+    '=<<': 'asnlshift',
+    '=&': 'asnand',
+    '=^': 'asneor',
+    '=|': 'asnor',
+}
+
 RE_NAME = r"[a-zA-Z_][a-zA-Z_0-9]*"
 RE_FCON = r"([0-9]*\.[0-9]+([eE][+-]?[0-9]+)?)|([0-9]+[eE][+-]?[0-9]+)"
 RE_CON = r"[0-9]+"

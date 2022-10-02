@@ -5,6 +5,7 @@ import typing
 
 from typing_extensions import Self
 
+import lexer
 import util
 from c6tstate import ParseState
 from symtab import Storage, Symbol
@@ -67,6 +68,20 @@ def con(i: int) -> Node:
     return Node("con", TypeString(Type.INT), value=util.word(i))
 
 
+def binary(
+    subparser: typing.Callable[[ParseState], Node], labels: dict[str, str]
+) -> typing.Callable[[ParseState], Node]:
+    """Create a usual left-associative binary operator parser."""
+
+    def parser(state: ParseState):
+        node = subparser(state)
+        while tkn := state.match(*labels.keys()):
+            node = build(labels[tkn.label], subparser(state))
+        return node
+
+    return parser
+
+
 def expr1(state: ParseState) -> Node:
     """Parse a primary expression."""
     if tkn := state.match("name", "con", "fcon", "string", "("):
@@ -114,6 +129,63 @@ def expr1(state: ParseState) -> Node:
     return node
 
 
-def expr15(state: ParseState) -> Node:
-    """Parse comma operators."""
-    raise NotImplementedError
+def expr2(state: ParseState) -> Node:
+    """Unary operators."""
+    if tkn := state.match("*", "&", "-", "!", "++", "--", "sizeof"):
+        match tkn.label:
+            case "*":
+                node = build("deref", expr2(state))
+            case "&":
+                node = build("addr", expr2(state))
+            case "-":
+                node = build("neg", expr2(state))
+            case "!":
+                node = build("not", expr2(state))
+            case "++":
+                node = build("preinc", expr2(state))
+            case "--":
+                node = build("predec", expr2(state))
+            case "sizeof":
+                node = con(expr2(state).typestr.size)
+            case _:
+                raise ValueError(tkn)
+    else:
+        node = expr1(state)
+    while tkn := state.match("++", "--"):
+        label = "postinc" if tkn.label == "++" else "postdec"
+        node = build(label, node)
+    return node
+
+
+expr3 = binary(expr2, {"*": "mult", "/": "div", "%": "mod"})
+expr4 = binary(expr3, {"+": "add", "-": "sub"})
+expr5 = binary(expr4, {">>": "rshift", "<<": "lshift"})
+expr6 = binary(expr5, {"<": "less", ">": "great", "<=": "lequ", ">=": "gequ"})
+expr7 = binary(expr6, {"==": "equ", "!=": "nequ"})
+expr8 = binary(expr7, {"&": "and"})
+expr9 = binary(expr8, {"^": "eor"})
+expr10 = binary(expr9, {"|": "or"})
+expr11 = binary(expr10, {"&&": "logand"})
+expr12 = binary(expr11, {"||": "logor"})
+
+
+def expr13(state: ParseState) -> Node:
+    """Handle conditional (? :) operator."""
+    node = expr12(state)
+    while state.match("?"):
+        left = expr12(state)
+        state.need(":")
+        right = expr12(state)
+        node = build("cond", build("colon", left, right))
+    return node
+
+
+def expr14(state: ParseState) -> Node:
+    """Handle assignment operators."""
+    node = expr13(state)
+    while tkn := state.match(*lexer.ASSIGNS.keys()):
+        node = build(lexer.ASSIGNS[tkn.label], expr14(state))
+    return node
+
+
+expr15 = binary(expr14, {",": "comma"})
