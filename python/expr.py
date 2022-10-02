@@ -32,8 +32,19 @@ class Node:
     children: list[Node] = dataclasses.field(default_factory=list)
     value: typing.Any = None
 
-    def __getitem__(self, i: int) -> Self:
+    @typing.overload
+    def __getitem__(self, i: slice) -> list[Node]:
+        ...
+
+    @typing.overload
+    def __getitem__(self, i: int) -> Node:
+        ...
+
+    def __getitem__(self, i: int | slice) -> Node | list[Node]:
         return self.children[i]
+
+    def __iter__(self) -> typing.Iterator[Node]:
+        return iter(self.children)
 
     def copy(self) -> Self:
         """Return a duplicated version of the node."""
@@ -76,13 +87,14 @@ def expression(
     return node
 
 
-def conexpr(state:ParseState, *, seecommas:bool=True) -> int:
+def conexpr(state: ParseState, *, seecommas: bool = True) -> int:
     """Parse a constant expression."""
     node = expression(state, seecommas=seecommas)
-    if node.label != 'con':
-        state.error('expected constant expression')
-        return 1 # Good default for arrays
+    if node.label != "con":
+        state.error("expected constant expression")
+        return 1  # Good default for arrays
     return node.value
+
 
 def build(state: ParseState, label: str, *childargs: Node) -> Node:
     """Construct a non-leaf node with type conversions."""
