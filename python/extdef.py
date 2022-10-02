@@ -31,6 +31,20 @@ def extdef_callback(
     """Callback function for an external definition. Return a flag for if we
     should end the typedecl list parsing immediately or not.
     """
+    if count == 0 and typestr[0].label == Type.FUNC and not state.peekmatch(",", ";"):
+        funcdef(state, name, args, typestr)
+        return True
+    datadef(state, name, typestr)
+    return False
+
+
+def datadef(state: ParseState, name: str, typestr: TypeString) -> None:
+    """Parse a data definition, with a possible initializer."""
+    raise NotImplementedError
+
+
+def funcdef(state: ParseState, name: str, args: list[str], typestr: TypeString) -> None:
+    """Parse a function definition."""
     raise NotImplementedError
 
 
@@ -89,7 +103,7 @@ def declmods(state: ParseState, mods: list[TypeElem]) -> tuple[str | None, list[
         match tkn.label:
             case "*":
                 name, args = declmods(state, mods)
-                mods.insert(0, TypeElem(Type.POINT))
+                mods.append(TypeElem(Type.POINT))
                 return name, args
             case "(":
                 name, args = declmods(state, mods)
@@ -109,14 +123,14 @@ def declmods(state: ParseState, mods: list[TypeElem]) -> tuple[str | None, list[
                     )
                 args = grabargs(state)
                 state.need(")")
-                mods.insert(0, TypeElem(Type.FUNC))
+                mods.append(TypeElem(Type.FUNC))
             case "[":
                 if state.peekmatch("]"):
                     size = 1
                 else:
                     size = conexpr(state)
                 state.need("]")
-                mods.insert(0, TypeElem(Type.ARRAY, size))
+                mods.append(TypeElem(Type.ARRAY, size))
             case _:
                 raise ValueError(tkn)
     return name, args
