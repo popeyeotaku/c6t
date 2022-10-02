@@ -4,6 +4,8 @@ import dataclasses
 import re
 import typing
 
+import util
+
 NAMELEN = 8  # Maximum length of a NAME token (aka an 'identifier')
 
 
@@ -58,7 +60,7 @@ class Token:
     """An input lexical token."""
 
     label: str
-    line: int
+    line: int = dataclasses.field(compare=False, hash=False)
     value: typing.Any = None
 
 
@@ -216,7 +218,7 @@ class Tokenizer:
             base = 8 if digits[0] == "0" else 10
             num = 0
             for digit in digits:
-                num = num * base + int(digit)
+                num = util.word(num * base + int(digit))
             return self._token("con", num)
         return None
 
