@@ -1,6 +1,14 @@
-"""C6T - C version 6 by Troy - Expression Node Parsing"""
+"""C6T - C version 6 by Troy - Expression Node Parsing
+
+Parsing starts at either expr15 (if you want to see commas) or expr14 (if you
+don't). Each level of precedence has a corresponding expr value - expr1 at the
+highest priority, expr15 at the lowest. Each priority number corresponds
+to a section in the Research Unix Version 6 C Reference Manual: expr1 is
+secion 7.1, expr2 is section 7.2, etc.
+"""
 
 from __future__ import annotations
+
 import copy
 import dataclasses
 import typing
@@ -49,6 +57,23 @@ class Node:
                 other.children.remove(child)
             return True
         return self.children == other.children
+
+
+def expression(
+    state: ParseState, *, seecommas: bool = True, post_to_pre: bool = False
+) -> Node:
+    """Parse an expression with conversions."""
+    if seecommas:
+        node = expr15(state)
+    else:
+        node = expr14(state)
+    node = build(state, "", node)  # Flush final conversions
+    if post_to_pre:
+        if node.label == "postinc":
+            node.label = "preinc"
+        elif node.label == "postdec":
+            node.label = "predec"
+    return node
 
 
 def build(state: ParseState, label: str, *childargs: Node) -> Node:
@@ -259,12 +284,3 @@ def expr14(state: ParseState) -> Node:
 
 
 expr15 = binary(expr14, {",": "comma"})
-
-
-def expression(state: ParseState, *, seecommas: bool = True) -> Node:
-    """Parse an expression."""
-    if seecommas:
-        node = expr15(state)
-    else:
-        node = expr14(state)
-    return build(state, "", node)
