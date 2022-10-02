@@ -37,6 +37,8 @@ OPCODES: dict[str, str] = {
     "logand": "logand",
     "logor": "logor",
     "comma": "comma",
+    "dot": "add",
+    "arrow": "add",
 }
 OPCODES.update({assign: assign for assign in lexer.ASSIGNS.values()})
 

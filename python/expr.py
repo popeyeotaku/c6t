@@ -240,33 +240,34 @@ def fold(node: Node) -> Node:
     cons = [child.value for child in node.children]
     match node.label:
         case "add":
-            return con(sum(cons))
+            result = con(sum(cons))
         case "sub":
-            return con(cons[0] - cons[1])
+            result = con(cons[0] - cons[1])
         case "mult":
-            return con(cons[0] * cons[1])
+            result = con(cons[0] * cons[1])
         case "div":
-            return con(cons[0] // cons[1])
+            result = con(cons[0] // cons[1])
         case "mod":
-            return con(cons[0] % cons[1])
+            result = con(cons[0] % cons[1])
         case "and":
-            return con(cons[0] & cons[1])
+            result = con(cons[0] & cons[1])
         case "or":
-            return con(cons[0] | cons[1])
+            result = con(cons[0] | cons[1])
         case "eor":
-            return con(cons[0] ^ cons[1])
+            result = con(cons[0] ^ cons[1])
         case "lshift":
-            return con(cons[0] << cons[1])
+            result = con(cons[0] << cons[1])
         case "rshift":
             if cons[0] & 0x8000:
-                cons[0] = -((cons[0]^0xFFFF)+1)
-            return con(cons[0] >> cons[1])
+                cons[0] = -((cons[0] ^ 0xFFFF) + 1)  # Force sign extension
+            result = con(cons[0] >> cons[1])
         case "neg":
-            return con(-cons[0])
+            result = con(-cons[0])
         case "compl":
-            return con(cons[0] ^ 0xFFFF)
+            result = con(cons[0] ^ 0xFFFF)
         case _:
             return node
+    return result
 
 
 def fixarray(node: Node) -> Node:

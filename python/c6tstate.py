@@ -25,6 +25,15 @@ class ParseState:
         self.tags: dict[str, symtab.Symbol] = {}
         self.auto_offset: int = 0
         self.usedregs: int = 0
+        self.curseg = "text"
+
+    def goseg(self, segment: str) -> str:
+        """Go to the given segment, returnig the old one."""
+        oldseg = self.curseg
+        if segment != oldseg:
+            self.pseudo(segment)
+            self.curseg = segment
+        return oldseg
 
     def golocal(self) -> None:
         """Enter local state."""

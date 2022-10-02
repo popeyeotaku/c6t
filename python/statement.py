@@ -182,6 +182,7 @@ STATEMENTS: dict[str, StateFunc] = {
 def statement(state: ParseState, stks: StateStks | None = None) -> None:
     """Parse a single statement recursively."""
     assert state.localscope is True
+    state.goseg('text')
     if stks is None:
         stks = {"contstk": [], "brkstk": [], "casestk": []}
     if tkn := state.match(*STATEMENTS.keys()):

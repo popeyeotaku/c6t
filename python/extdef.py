@@ -12,7 +12,7 @@ gets passed a callback function for different situations.
 from typing import Callable
 
 import statement
-from c6tstate import ParseState
+from c6tstate import ParseState, MAXREGS
 from expr import conexpr
 from symtab import Storage, Symbol
 from type6 import Type, TypeElem, TypeString
@@ -56,6 +56,7 @@ def datadef(state: ParseState, name: str, typestr: TypeString) -> None:
     if symbol.typestr[0].label == Type.FUNC:
         return
     if state.peekmatch(",", ";"):
+        state.goseg("bss")
         state.pseudo("common", "_" + name, str(typestr.size))
     else:
         datainit(state, name, typestr)
@@ -72,6 +73,9 @@ def datainit(state: ParseState, name: str, typestr: TypeString) -> None:
 
 def funcdef(state: ParseState, name: str, args: list[str], typestr: TypeString) -> None:
     """Parse a function definition."""
+    state.goseg("text")
+    symbol = Symbol(Storage.EXTERN, "_" + name, typestr)
+    state.symtab[name] = symbol
     state.golocal()
     grabparams(state, args)
     state.need("{")
@@ -90,6 +94,49 @@ def grabparams(state: ParseState, args: list[str]) -> None:
 
 def grablocals(state: ParseState) -> None:
     """Parse local declarations."""
+    assert state.auto_offset == 0
+    assert state.usedregs == 0
+    assert state.localscope
+    typedecl_list(state, local_callback, need_typeclass=True)
+    state.goseg("text")
+    state.asm("useregs", str(state.usedregs))
+    if state.auto_offset:
+        state.asm("dropstk", str(-state.auto_offset))
+
+
+# pylint:disable=unused-argument
+def local_callback(
+    state: ParseState,
+    count: int,
+    name: str,
+    args: list[str],
+    typestr: TypeString,
+    storage: Storage,
+) -> bool:
+    """Callback function for seeing a declaration of a local."""
+    assert state.localscope
+    if storage == Storage.REGISTER and state.usedregs >= MAXREGS:
+        storage = Storage.AUTO
+    match storage:
+        case Storage.EXTERN:
+            offset = "_" + name
+        case Storage.STATIC:
+            offset = state.static()
+            oldseg = state.goseg("bss")
+            state.defstatic(offset)
+            state.pseudo("ds", str(typestr.size))
+            state.goseg(oldseg)
+        case Storage.AUTO:
+            state.auto_offset -= typestr.size
+            offset = state.auto_offset
+        case Storage.REGISTER:
+            offset = state.usedregs
+            state.usedregs += 1
+        case _:
+            raise ValueError(storage)
+    symbol = Symbol(storage, offset, typestr, local=True)
+    state.symtab[name] = symbol
+    return False
 
 
 def typedecl_list(
