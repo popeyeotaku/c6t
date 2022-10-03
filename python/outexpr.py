@@ -105,6 +105,16 @@ def special(state: ParseState, node: Node) -> bool:
             asmexpr(state, node[0])
         case "cond":
             raise NotImplementedError
+        case "string":
+            assert isinstance(node.value, bytes)
+            oldseg = state.goseg("string")
+            static = state.static()
+            state.defstatic(static)
+            state.pseudo(
+                "db", *(str(char) for char in node.value)
+            )
+            state.goseg(oldseg)
+            state.asm("name", f"L{static}")
         case "name":
             symbol: Symbol = node.value
             match symbol.storage:

@@ -5,6 +5,7 @@ import unittest
 
 from c6tstate import ParseState
 from expr import Node, expression
+from outexpr import outexpr
 from type6 import Type, TypeString
 from symtab import Symbol, Storage
 
@@ -17,7 +18,26 @@ def inode(label: str, *children: Node, value: typing.Any = None) -> Node:
 class TestExpr(unittest.TestCase):
     """Test expression parser."""
 
+    def test_string(self):
+        """Test string output."""
+        source = r'puts("hello world\n");'
+        response = [
+            "name _puts",
+            ".string",
+            "L1:.db 104,101,108,108,111,32,119,111,114,108,100,10,0",
+            ".text",
+            "name L1",
+            "call",
+        ]
+        state = ParseState(source)
+        state.localscope = True
+        node = expression(state)
+        outexpr(state, node)
+        self.assertEqual(state.out_ir.splitlines(keepends=False), response)
+        self.assertEqual(state.errcount, 0)
+
     def test_rshift(self):
+        """Test rshifts are working properly, with sign extension."""
         self.dotest("(-10)>>3", inode("con", value=0xFFFE))
 
     def parse(self, source: str):

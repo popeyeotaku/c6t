@@ -127,9 +127,12 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
             return Node(label, typestr, children)
         case "call" | "ucall":
             assert left is not None
+            typestr = left.typestr
             if left.typestr[0].label != Type.FUNC:
                 state.error("call of non-function")
-            return Node(label, left.typestr.pop(), children)
+            else:
+                typestr = left.typestr.pop()
+            return Node(label, typestr, children)
         case "deref":
             assert left is not None
             if left.label == "addr":
@@ -356,7 +359,7 @@ def expr1(state: ParseState) -> Node:
             case "string":
                 node = Node(
                     "string",
-                    TypeString(TypeElem(Type.ARRAY, len(tkn.value))),
+                    TypeString(TypeElem(Type.ARRAY, len(tkn.value)), Type.CHAR),
                     value=tkn.value,
                 )
             case "(":

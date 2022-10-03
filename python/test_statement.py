@@ -19,6 +19,7 @@ class StateTest(unittest.TestCase):
             state.out_ir.splitlines(keepends=False),
             ["name L1", "goto", "L1:L2:name L2", "goto"],
         )
+        self.assertEqual(state.errcount, 0)
 
     def test_retnull(self):
         """Test null returns."""
@@ -27,3 +28,4 @@ class StateTest(unittest.TestCase):
         statement.statement(state)
         self.assertTrue(state.eof())
         self.assertEqual(state.out_ir, "retnull\n")
+        self.assertEqual(state.errcount, 0)

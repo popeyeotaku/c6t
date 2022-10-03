@@ -72,6 +72,7 @@ class FuncTest(unittest.TestCase):
         state = ParseState("\n".join(source))
         extdef(state)
         self.assertEqual(state.out_ir.splitlines(keepends=False), response)
+        self.assertEqual(state.errcount, 0)
 
 
 class DataTest(unittest.TestCase):
@@ -85,6 +86,7 @@ class DataTest(unittest.TestCase):
             state.out_ir.splitlines(keepends=False),
             [".bss", ".common _foo,1", ".common _bar,1", ".common _foobar,2"],
         )
+        self.assertEqual(state.errcount, 0)
 
 
 class DeclTest(unittest.TestCase):
@@ -108,3 +110,4 @@ class DeclTest(unittest.TestCase):
             self.assertEqual(name, testname)
             self.assertEqual(args, testargs)
             self.assertEqual(testmods, mods)
+            self.assertEqual(state.errcount, 0)

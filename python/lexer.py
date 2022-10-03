@@ -143,17 +143,17 @@ OPERATORS = sorted(
 )
 
 ASSIGNS = {
-    '=': 'assign',
-    '=+': 'asnadd',
-    '=-': 'asnsub',
-    '=*': 'asnmult',
-    '=/': 'asndiv',
-    '=%': 'asnmod',
-    '=>>': 'asnrshift',
-    '=<<': 'asnlshift',
-    '=&': 'asnand',
-    '=^': 'asneor',
-    '=|': 'asnor',
+    "=": "assign",
+    "=+": "asnadd",
+    "=-": "asnsub",
+    "=*": "asnmult",
+    "=/": "asndiv",
+    "=%": "asnmod",
+    "=>>": "asnrshift",
+    "=<<": "asnlshift",
+    "=&": "asnand",
+    "=^": "asneor",
+    "=|": "asnor",
 }
 
 RE_NAME = r"[a-zA-Z_][a-zA-Z_0-9]*"
@@ -202,13 +202,47 @@ class Tokenizer:
             raise ValueError(f"invalid input character {self.source.popchar()}")
         return token
 
+    @staticmethod
+    def dochar(text: str, i: int) -> tuple[bytes, int]:
+        """Perform character escape processing."""
+        if text[i] == "\\":
+            i += 1
+            match text[i]:
+                case "b":
+                    char = "\b"
+                case "n":
+                    char = "\n"
+                case "r":
+                    char = "\r"
+                case "t":
+                    char = "\t"
+                case "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7":
+                    octal = text[i : i + 3]
+                    while octal[-1] not in "01234567":
+                        octal = octal[:-1]
+                    return bytes([int(octal, base=8)]), i + len(octal)
+                case _:
+                    char = text[i]
+        else:
+            char = text[i]
+        return char.encode('ascii'), i + 1
+
     def _charcon(self) -> Token | None:
         """Try to parse a character constant."""
-        raise NotImplementedError
+        return None
 
     def _string(self) -> Token | None:
         """Try to parse a string."""
-        raise NotImplementedError
+        if match := self.source.matchre(RE_STRING):
+            strval = bytes()
+            strsrc = match[0][1:-1]
+            i = 0
+            while i < len(strsrc):
+                char, i = self.dochar(strsrc, i)
+                strval += char
+            strval += bytes([0])
+            return self._token('string', strval)
+        return None
 
     def _name(self) -> Token | None:
         """Try to parse a NAME token."""
