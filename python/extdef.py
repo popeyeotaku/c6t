@@ -12,10 +12,12 @@ gets passed a callback function for different situations.
 from typing import Callable
 
 import statement
-from c6tstate import ParseState, MAXREGS
+from c6tstate import MAXREGS, ParseState
 from expr import conexpr
 from symtab import Storage, Symbol
 from type6 import Type, TypeElem, TypeString
+
+START_OFFSET = 10  # Starting offset of parameters from the frame pointer
 
 
 def extdef(state: ParseState):
@@ -91,20 +93,44 @@ def funcdef(state: ParseState, name: str, args: list[str], typestr: TypeString) 
 
 def grabparams(state: ParseState, args: list[str]) -> None:
     """Parse parameter type declarations."""
+    argsyms: list[Symbol] = []
+    for arg in args:
+        symbol = Symbol(Storage.AUTO, 0, typestr=TypeString(Type.INT), local=True)
+        argsyms.append(symbol)
+        state.symtab[arg] = symbol
+
+    def param_callback(
+        state: ParseState,
+        count: int,
+        name: str,
+        args: list[str],
+        typestr: TypeString,
+        storage: Storage,
+    ) -> bool:
+        """Callback after seeing a parameter declaration."""
+        if name not in state.symtab or (
+            name in state.symtab and state.symtab[name] not in argsyms
+        ):
+            state.error(f"undefined parameter {name}")
+        else:
+            symbol = state.symtab[name]
+            symbol.typestr = typestr
+        return False
+
     typedecl_list(state, param_callback, need_typeclass=True)
-    # TODO: Finalize params
+    auto_offset = START_OFFSET
+    for sym in argsyms:
+        if sym.typestr.floating:
+            sym.typestr = TypeString(Type.DOUBLE)
+        elif sym.typestr.pointer:
+            sym.typestr = TypeString(Type.POINT, *sym.typestr.pop())
+        elif sym.typestr.integral:
+            sym.typestr = TypeString(Type.INT)
+        else:
+            state.error(f"invalid type on parameter {args[argsyms.index(sym)]}")
 
-
-def param_callback(
-    state: ParseState,
-    count: int,
-    name: str,
-    args: list[str],
-    typestr: TypeString,
-    storage: Storage,
-) -> bool:
-    """Callback after seeing a parameter declaration."""
-    raise NotImplementedError
+        sym.offset = auto_offset
+        auto_offset += sym.typestr.size
 
 
 def grablocals(state: ParseState) -> None:

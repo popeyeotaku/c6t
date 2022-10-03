@@ -11,6 +11,25 @@ from type6 import Type, TypeElem
 class FuncTest(unittest.TestCase):
     """Test function definitions."""
 
+    def test_params_locals(self):
+        """Test a function definition with parameters and locals."""
+        source = ["foobar(foo, bar)", "int *foo;", "{", "return (foo[bar]);", "}"]
+        response = [
+            "_foobar:.export _foobar",
+            "useregs 0",
+            "auto 10",
+            "load",
+            "auto 12",
+            "load",
+            "con 2",
+            "mult",
+            "add",
+            "load",
+            "ret",
+            "retnull",
+        ]
+        self.cmpsrc(source, response)
+
     def test_func_with_locals(self):
         """Test a function definition with locals, making sure they're at the
         correct positions. Also tests backend output and expressions.
@@ -44,6 +63,12 @@ class FuncTest(unittest.TestCase):
             "ret",
             "retnull",
         ]
+        self.cmpsrc(source, response)
+
+    def cmpsrc(self, source: list[str], response: list[str]):
+        """Compare the source code to the given response, with each line a
+        different element in the list.
+        """
         state = ParseState("\n".join(source))
         extdef(state)
         self.assertEqual(state.out_ir.splitlines(keepends=False), response)
