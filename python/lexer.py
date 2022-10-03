@@ -159,8 +159,8 @@ ASSIGNS = {
 RE_NAME = r"[a-zA-Z_][a-zA-Z_0-9]*"
 RE_FCON = r"([0-9]*\.[0-9]+([eE][+-]?[0-9]+)?)|([0-9]+[eE][+-]?[0-9]+)"
 RE_CON = r"[0-9]+"
-RE_CHARCON = r"'([^']|(\\'))*'"
-RE_STRING = r'"([^"]|(\\"))*"'
+RE_CHARCON = r'"(?:[^"\\]|\\.)*"'
+RE_STRING = r'"(?:[^"\\]|\\.)*"'
 
 # The entry keyword is never used, but was at this time reserved for a
 # proposed feature to allow multiple entry points to the same function.
@@ -225,7 +225,7 @@ class Tokenizer:
                     char = text[i]
         else:
             char = text[i]
-        return char.encode('ascii'), i + 1
+        return char.encode("ascii"), i + 1
 
     def _charcon(self) -> Token | None:
         """Try to parse a character constant."""
@@ -241,7 +241,7 @@ class Tokenizer:
                 char, i = self.dochar(strsrc, i)
                 strval += char
             strval += bytes([0])
-            return self._token('string', strval)
+            return self._token("string", strval)
         return None
 
     def _name(self) -> Token | None:

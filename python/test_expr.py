@@ -20,7 +20,7 @@ class TestExpr(unittest.TestCase):
 
     def test_string(self):
         """Test string output."""
-        source = r'puts("hello world\n");'
+        source = r'puts("hello world\n"),puts("\001\"\02\"\3")'
         response = [
             "name _puts",
             ".string",
@@ -28,6 +28,13 @@ class TestExpr(unittest.TestCase):
             ".text",
             "name L1",
             "call",
+            "name _puts",
+            ".string",
+            "L2:.db 1,34,2,34,3,0",
+            ".text",
+            "name L2",
+            "call",
+            "comma",
         ]
         state = ParseState(source)
         state.localscope = True
