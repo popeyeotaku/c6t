@@ -17,7 +17,7 @@ class StateTest(unittest.TestCase):
         self.assertTrue(state.eof())
         self.assertEqual(
             state.out_ir.splitlines(keepends=False),
-            ["\tname L1", "\tgoto", "L1:", "L2:", "\tname L2", "\tgoto"],
+            ["name L1", "goto", "L1:L2:name L2", "goto"],
         )
 
     def test_retnull(self):
@@ -26,4 +26,4 @@ class StateTest(unittest.TestCase):
         state.localscope = True
         statement.statement(state)
         self.assertTrue(state.eof())
-        self.assertEqual(state.out_ir, "\tretnull\n")
+        self.assertEqual(state.out_ir, "retnull\n")

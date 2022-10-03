@@ -21,7 +21,7 @@ from type6 import Type, TypeElem, TypeString
 def extdef(state: ParseState):
     """Parse an external definition."""
     assert state.localscope is False
-    typedecl_list(state, extdef_callback, need_typeclass=True)
+    typedecl_list(state, extdef_callback, need_typeclass=False)
 
 
 TypeDeclCallback = Callable[
@@ -74,6 +74,8 @@ def datainit(state: ParseState, name: str, typestr: TypeString) -> None:
 def funcdef(state: ParseState, name: str, args: list[str], typestr: TypeString) -> None:
     """Parse a function definition."""
     state.goseg("text")
+    state.deflabel("_" + name)
+    state.pseudo("export", "_" + name)
     symbol = Symbol(Storage.EXTERN, "_" + name, typestr)
     state.symtab[name] = symbol
     state.golocal()
@@ -89,6 +91,19 @@ def funcdef(state: ParseState, name: str, args: list[str], typestr: TypeString) 
 
 def grabparams(state: ParseState, args: list[str]) -> None:
     """Parse parameter type declarations."""
+    typedecl_list(state, param_callback, need_typeclass=True)
+    # TODO: Finalize params
+
+
+def param_callback(
+    state: ParseState,
+    count: int,
+    name: str,
+    args: list[str],
+    typestr: TypeString,
+    storage: Storage,
+) -> bool:
+    """Callback after seeing a parameter declaration."""
     raise NotImplementedError
 
 

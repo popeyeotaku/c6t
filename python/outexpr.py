@@ -4,6 +4,7 @@ from typing import Literal
 
 import lexer
 import opinfo
+import util
 from c6tstate import ParseState
 from expr import Node
 from symtab import Storage, Symbol
@@ -108,7 +109,8 @@ def special(state: ParseState, node: Node) -> bool:
             symbol: Symbol = node.value
             match symbol.storage:
                 case Storage.AUTO:
-                    state.asm("pushframe", str(symbol.offset))
+                    assert isinstance(symbol.offset, int)
+                    state.asm("auto", str(util.word(symbol.offset)))
                 case Storage.STATIC:
                     state.asm("name", f"L{symbol.offset}")
                 case Storage.EXTERN:

@@ -2,9 +2,51 @@
 
 import unittest
 
+import util
 from c6tstate import ParseState
 from extdef import declmods, extdef
 from type6 import Type, TypeElem
+
+
+class FuncTest(unittest.TestCase):
+    """Test function definitions."""
+
+    def test_func_with_locals(self):
+        """Test a function definition with locals, making sure they're at the
+        correct positions. Also tests backend output and expressions.
+        """
+        source = [
+            "foo()",
+            "{",
+            "char bar[10][20];",
+            "register i;",
+            "static j;",
+            "return (bar[i][j]);",
+            "}",
+        ]
+        response = [
+            "_foo:.export _foo",
+            ".bss",
+            "L1:.ds 2",
+            ".text",
+            "useregs 1",
+            "dropstk 200",
+            f"auto {util.word(-200)}",
+            "reg 0",
+            "load",
+            "con 20",
+            "mult",
+            "add",
+            "name L1",
+            "load",
+            "add",
+            "cload",
+            "ret",
+            "retnull",
+        ]
+        state = ParseState("\n".join(source))
+        extdef(state)
+        self.assertEqual(state.out_ir.splitlines(keepends=False), response)
 
 
 class DataTest(unittest.TestCase):
@@ -16,7 +58,7 @@ class DataTest(unittest.TestCase):
         extdef(state)
         self.assertEqual(
             state.out_ir.splitlines(keepends=False),
-            ["\t.common _foo,1", "\t.common _bar,1", "\t.common _foobar,2"],
+            [".bss", ".common _foo,1", ".common _bar,1", ".common _foobar,2"],
         )
 
 

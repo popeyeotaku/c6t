@@ -44,7 +44,7 @@ class ParseState:
     def exitlocal(self) -> None:
         """Exit local state."""
         for table in self.symtab, self.tags:
-            for name, symbol in table.items():
+            for name, symbol in table.copy().items():
                 if symbol.undef:
                     self.error(f"undefined name {name}")
                 if symbol.local:
@@ -140,7 +140,7 @@ class ParseState:
 
     def asm(self, opcode: str, *operands: str) -> None:
         """Append the given IR assembly into the IR text."""
-        line = f"\t{opcode}"
+        line = f"{opcode}"
         if operands:
             line += f' {",".join(operands)}'
         self.out_ir += f"{line}\n"
@@ -149,7 +149,7 @@ class ParseState:
         """Append the label into the IR text so that it is defined at the
         current position.
         """
-        self.out_ir += f"{label}:\n"
+        self.out_ir += f"{label}:"
 
     def pseudo(self, opcode: str, *operands: str) -> None:
         """Append the given pseudo-op to the IR text."""

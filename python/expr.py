@@ -199,10 +199,14 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
         case Type.POINT:
             if left.typestr.pointer:
                 typestr = left.typestr
-                right = Node(pntlab, typestr, [right, con(typestr.sizenext())])
+                sizenext = typestr.sizenext()
+                if sizenext != 1:
+                    right = Node(pntlab, typestr, [right, con(sizenext)])
             else:
                 typestr = right.typestr
-                left = Node(pntlab, typestr, [left, con(typestr.sizenext())])
+                sizenext = typestr.sizenext()
+                if sizenext != 1:
+                    left = Node(pntlab, typestr, [left, con(sizenext)])
         case Type.FLOAT:
             typestr = TypeString(Type.DOUBLE)
             if not left.typestr.floating:
