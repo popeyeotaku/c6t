@@ -8,8 +8,7 @@ import preproc
 
 def compile_c6t(source: str) -> str:
     """Compile a C6T source file, returning the stack-based IR representation."""
-    if source[0] == "#":
-        source = preproc.preproc(source)
+    source = preproc.preproc(source)
     state = c6tstate.ParseState(source)
     while not state.eof():
         extdef.extdef(state)
