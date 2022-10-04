@@ -77,6 +77,8 @@ def preproc(source: str) -> str:
                              of it to keep C6T from counting line numbers
                              inside.
     """
+    if not source:
+        return source
     if source[0] != "#":
         return source
 
