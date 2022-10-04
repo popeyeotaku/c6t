@@ -84,7 +84,7 @@ def funcdef(state: ParseState, name: str, args: list[str], typestr: TypeString) 
     grabparams(state, args)
     state.need("{")
     grablocals(state)
-    state.goseg('text')
+    state.goseg("text")
     while not state.match("}"):
         state.earlyeof()
         statement.statement(state)
@@ -121,14 +121,17 @@ def grabparams(state: ParseState, args: list[str]) -> None:
     typedecl_list(state, param_callback, need_typeclass=True)
     auto_offset = START_OFFSET
     for sym in argsyms:
-        if sym.typestr.floating:
-            sym.typestr = TypeString(Type.DOUBLE)
-        elif sym.typestr.pointer:
-            sym.typestr = TypeString(Type.POINT, *sym.typestr.pop())
-        elif sym.typestr.integral:
-            sym.typestr = TypeString(Type.INT)
-        else:
-            state.error(f"invalid type on parameter {args[argsyms.index(sym)]}")
+        match sym.typestr[0].label:
+            case Type.FLOAT:
+                sym.typestr = TypeString(Type.DOUBLE)
+            case Type.ARRAY:
+                sym.typestr = TypeString(Type.POINT, *sym.typestr.pop())
+            case Type.CHAR:
+                sym.typestr = TypeString(Type.INT)
+            case Type.STRUCT:
+                state.error("cannot pass structs")
+            case _:
+                pass
 
         sym.offset = auto_offset
         auto_offset += sym.typestr.size
@@ -187,13 +190,14 @@ def typedecl_list(
     parsed any.
     """
     gotany = False
-    while True:
+    while not state.eof():
+        # Each step thru the loop processes one line of declarators
+        # (from the typeclass to the trailling semicolon)
+        # Unless the callback returns True, in which case we exit early.
         count = 0
-        if state.eof():
-            return gotany
         basetype, storage = typeclass(state)
         if basetype is None and storage is None and need_typeclass:
-            return gotany
+            break
         if not gotany:
             gotany = (basetype is not None) or (storage is not None)
         if basetype is None:
@@ -213,6 +217,7 @@ def typedecl_list(
             if not state.peekmatch(";"):
                 state.need(",")
             count += 1
+    return gotany
 
 
 def decl(

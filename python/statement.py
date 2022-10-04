@@ -57,12 +57,58 @@ def whilestate(state: ParseState, stks: StateStks) -> None:
 
 def dostate(state: ParseState, stks: StateStks) -> None:
     """Parse a do statement."""
-    raise NotImplementedError
+    static = state.static()
+    state.defstatic(static)
+    stks["contstk"].append(state.static())
+    stks["brkstk"].append(state.static())
+    statement(state, stks)
+    state.need("while")
+    node = parenexpr(state)
+    state.need(";")
+    state.defstatic(stks["contstk"][-1])
+    outexpr.outexpr(state, node)
+    state.brz(stks["brkstk"][-1])
+    state.jmpstatic(static)
+    state.defstatic(stks["brkstk"][-1])
+    stks["brkstk"].pop()
+    stks["contstk"].pop()
 
 
 def forstate(state: ParseState, stks: StateStks) -> None:
     """Parse a for statement."""
-    raise NotImplementedError
+    state.need("(")
+    if state.match(";"):
+        init = None
+    else:
+        init = expr.expression(state)
+        state.need(";")
+    if state.match(";"):
+        check = None
+    else:
+        check = expr.expression(state)
+        state.need(";")
+    if state.match(")"):
+        update = None
+    else:
+        update = expr.expression(state)
+        state.need(")")
+    if init:
+        outexpr.outexpr(state, init)
+        state.asm("eval")
+    stks["contstk"].append(state.static())
+    stks["brkstk"].append(state.static())
+    state.defstatic(stks["contstk"][-1])
+    if check:
+        outexpr.outexpr(state, check)
+        state.brz(stks["brkstk"][-1])
+    statement(state, stks)
+    if update:
+        outexpr.outexpr(state, update)
+        state.asm("eval")
+    state.jmpstatic(stks["contstk"][-1])
+    state.defstatic(stks["brkstk"][-1])
+    stks["brkstk"].pop()
+    stks["contstk"].pop()
 
 
 def switchstate(state: ParseState, stks: StateStks) -> None:
@@ -182,7 +228,7 @@ STATEMENTS: dict[str, StateFunc] = {
 def statement(state: ParseState, stks: StateStks | None = None) -> None:
     """Parse a single statement recursively."""
     assert state.localscope is True
-    state.goseg('text')
+    state.goseg("text")
     if stks is None:
         stks = {"contstk": [], "brkstk": [], "casestk": []}
     if tkn := state.match(*STATEMENTS.keys()):
@@ -224,6 +270,7 @@ def exprstate(state: ParseState) -> None:
     node = expr.expression(state, seecommas=True, post_to_pre=True)
     state.need(";")
     outexpr.outexpr(state, node)
+    state.asm("eval")
 
 
 def retnull(state: ParseState) -> None:
