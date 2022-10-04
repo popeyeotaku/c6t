@@ -17,6 +17,9 @@ class CaseCollection:
     cases: dict[int, int] = field(default_factory=dict)
     default_static: int | None = None
 
+    def __len__(self) -> int:
+        return len(self.cases)
+
 
 StateStks = TypedDict(
     "StateStks", contstk=list[int], brkstk=list[int], casestk=list[CaseCollection]
@@ -123,10 +126,11 @@ def switchstate(state: ParseState, stks: StateStks) -> None:
     node = parenexpr(state)
     static = state.static()
     state.jmpstatic(static)
+    stks["brkstk"].append(state.static())
     stks["casestk"].append(CaseCollection())
     statement(state, stks)
     state.defstatic(static)
-    doswitch(state, node, stks["casestk"].pop())
+    doswitch(state, node, stks["casestk"].pop(), stks["brkstk"].pop())
 
 
 def casestate(state: ParseState, stks: StateStks) -> None:
@@ -293,6 +297,21 @@ def parenexpr(state: ParseState) -> expr.Node:
     return node
 
 
-def doswitch(state: ParseState, node: expr.Node, cases: CaseCollection) -> None:
+def doswitch(state: ParseState, node: expr.Node, cases: CaseCollection, brklab:int) -> None:
     """Assemble a switch statement."""
-    raise NotImplementedError
+    assert state.curseg == 'text'
+    state.goseg("data")
+    table = state.static()
+    state.defstatic(table)
+    for con, label in cases.cases.items():
+        state.pseudo("dw", str(con), f"L{label}")
+    state.goseg("text")
+    outexpr.outexpr(state, node)
+    state.asm("name", f"L{table}")
+    default = cases.default_static
+    if default is None:
+        default = brklab
+    state.asm("name", f"L{default}")
+    state.asm("con", str(len(cases)))
+    state.asm("doswitch")
+    state.defstatic(brklab)
