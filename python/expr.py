@@ -463,7 +463,7 @@ def expr13(state: ParseState) -> Node:
         left = expr12(state)
         state.need(":")
         right = expr12(state)
-        node = build(state, "cond", build(state, "colon", left, right))
+        node = build(state, "cond", node, build(state, "colon", left, right))
     return node
 
 

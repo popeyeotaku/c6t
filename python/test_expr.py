@@ -19,6 +19,30 @@ def inode(label: str, *children: Node, value: typing.Any = None) -> Node:
 class TestExpr(unittest.TestCase):
     """Test expression parser."""
 
+    def test_cond(self):
+        """Test ... ? ... : ... operators."""
+        self.cmpsrc(
+            [
+                'foobar(foo, bar)',
+                '{',
+                'return (foo ? bar : foo);',
+                '}'
+            ],
+            [
+                '_foobar:.export _foobar',
+                'useregs 0',
+                'auto 10',
+                'load',
+                'auto 12',
+                'load',
+                'auto 10',
+                'load',
+                'cond',
+                'ret',
+                'retnull',
+            ]
+        )
+
     def test_assign(self):
         """Test assign statements."""
         source = [
@@ -60,6 +84,12 @@ class TestExpr(unittest.TestCase):
             'eval',
             "retnull",
         ]
+        self.cmpsrc(source, response)
+    
+    def cmpsrc(self, source:list[str], response:list[str]):
+        """Compare the source code to the output IR. Both source and response
+        IR are in the format of a list of strings with one line per string.
+        """
         state = ParseState("\n".join(source))
         extdef.extdef(state)
         self.assertTrue(state.eof())

@@ -116,7 +116,10 @@ def special(state: ParseState, node: Node) -> bool:
         case "addr":
             asmexpr(state, node[0])
         case "cond":
-            raise NotImplementedError
+            for child in (node[0], node[1][0], node[1][1]):
+                asmexpr(state, child)
+                rval(state, child)
+            state.asm("cond")
         case "string":
             assert isinstance(node.value, bytes)
             oldseg = state.goseg("string")
