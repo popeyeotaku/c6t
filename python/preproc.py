@@ -22,7 +22,7 @@ class Source(Iterable[str]):
 
     def __iter__(self) -> Iterator[str]:
         return self
-    
+
     @property
     def in_include(self) -> bool:
         """A flag for if we're inside an include or not."""
@@ -30,7 +30,7 @@ class Source(Iterable[str]):
 
     def __next__(self) -> str:
         if self.in_include:
-                return self._include.popleft()
+            return self._include.popleft()
         if self._lines:
             self._line += 1
             return self._lines.popleft()
