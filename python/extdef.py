@@ -316,10 +316,91 @@ def grabtype(state: ParseState) -> TypeElem | None:
             case "double":
                 return TypeElem(Type.DOUBLE)
             case "struct":
-                raise NotImplementedError
+                return grabstruct(state)
             case _:
                 raise ValueError(tkn)
     return None
+
+
+def grabstruct(state: ParseState) -> TypeElem:
+    """Grab a structure type spec, filling it in the tag table if necessary
+    and returning the proper type elem with size.
+    """
+    fillin = False
+    size = 0
+    if token := state.match("name"):
+        assert isinstance(token.value, str)
+        name = token.value
+        if name not in state.tags:
+            state.tags[name] = Symbol(
+                Storage.STRUCT, offset=0, typestr=TypeString(TypeElem(Type.STRUCT, 0))
+            )
+            fillin = True
+    else:
+        name = None
+    membersize = grabmembers(state)
+    if membersize is None and name is None:
+        state.error("missing struct spec")
+    elif membersize is None and name is not None:
+        if fillin:
+            state.error(f"undefined struct tag {name}")
+        else:
+            size = state.tags[name].offset
+            assert isinstance(size, int)
+    elif membersize is not None and name is not None:
+        if fillin:
+            size = membersize
+            state.tags[name].offset = size
+            state.tags[name].typestr = TypeString(TypeElem(Type.STRUCT, size))
+        else:
+            if state.tags[name].offset != membersize:
+                state.error(f"bad struct redef {name}")
+    else:
+        raise ValueError(membersize, name)
+    return TypeElem(Type.STRUCT, size)
+
+
+def grabmembers(state: ParseState) -> int | None:
+    """See any potential member type declarations are part of a struct type
+    spec, returning the size of all members if any (None if not).
+    """
+    if not state.match("{"):
+        return None
+    offset = 0
+
+    # pylint:disable=unused-argument
+    def member_callback(
+        state: ParseState,
+        count: int,
+        name: str,
+        args: list[str],
+        typestr: TypeString,
+        storage: Storage,
+    ) -> bool:
+        """Callback for member definitions."""
+        nonlocal offset
+        if name in state.tags:
+            member = state.tags[name]
+            if (
+                member.storage == Storage.MEMBER
+                and member.typestr == typestr
+                and member.offset == offset
+            ):
+                pass
+            else:
+                state.error("member redefinition")
+        state.tags[name] = Symbol(
+            Storage.MEMBER, offset, typestr, local=state.localscope
+        )
+        offset += typestr.size
+        return False
+
+    while not state.match("}"):
+        state.earlyeof()
+        if not typedecl_list(state, member_callback, need_typeclass=True):
+            state.need("}")
+            break
+    return offset
 
 
 def grabclass(state: ParseState) -> Storage | None:

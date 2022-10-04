@@ -46,4 +46,4 @@ CMP = {*LESSGREAT, "equ", "nequ"}
 
 ISINT = {*CMP}
 
-NOFLTOP = {"toint", "toflt"}
+NOFLTOP = {"toint", "toflt", "dot", "arrow"}

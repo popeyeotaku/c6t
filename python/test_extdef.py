@@ -92,6 +92,61 @@ class DataTest(unittest.TestCase):
 class DeclTest(unittest.TestCase):
     """Tests declarator parsing."""
 
+    def cmpsrc(self, source: list[str], response: list[str]):
+        """Compare the source code to the given response, with each line a
+        different element in the list.
+        """
+        state = ParseState("\n".join(source))
+        extdef(state)
+        self.assertEqual(state.out_ir.splitlines(keepends=False), response)
+        self.assertEqual(state.errcount, 0)
+
+    def test_struct(self):
+        """Test struct type definitions."""
+        self.cmpsrc(
+            [
+                "struct foobar { int foo; struct foobar *bar; };",
+                "foobar(foo)",
+                "struct foobar *foo;",
+                "{",
+                "static struct foobar bar;",
+                "bar.bar = foo;",
+                "bar.foo = foo->bar->foo;",
+                "return (sizeof(bar));",
+                "}",
+            ],
+            [
+                "_foobar:.export _foobar",
+                ".bss",
+                "L1:.ds 4",
+                ".text",
+                "useregs 0",
+                "auto 10",
+                "load",
+                "name L1",
+                "con 2",
+                "add",
+                "assign",
+                "eval",
+                "auto 10",
+                "load",
+                "con 2",
+                "add",
+                "load",
+                "con 0",
+                "add",
+                "load",
+                "name L1",
+                "con 0",
+                "add",
+                "assign",
+                "eval",
+                "con 4",
+                "ret",
+                "retnull",
+            ],
+        )
+
     def test_fncpoint(self):
         """Test pointer to function and function returning pointer."""
         for testsrc, testname, testmods, testargs in (

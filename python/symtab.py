@@ -12,8 +12,8 @@ class Storage(enum.Enum):
     EXTERN = enum.auto()
     STATIC = enum.auto()
     REGISTER = enum.auto()
-    STRUCT = enum.auto()
     MEMBER = enum.auto()
+    STRUCT = enum.auto()
 
 
 @dataclasses.dataclass

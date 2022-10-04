@@ -60,8 +60,7 @@ def asmexpr(state: ParseState, node: Node) -> None:
         return
     if node.children:
         asmexpr(state, node[0])
-        label = node[0].label
-        if label not in opinfo.NEEDLVAL:
+        if node.label not in opinfo.NEEDLVAL:
             rval(state, node[0])
         for child in node[1:]:
             asmexpr(state, child)

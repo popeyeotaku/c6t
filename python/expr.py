@@ -332,7 +332,22 @@ def getsym(state: ParseState, name: str) -> Symbol:
 
 def domember(state: ParseState, node: Node, name: str, operator: str) -> Node:
     """Handle a member operator (., ->)."""
-    raise NotImplementedError
+    assert operator in (".", "->")
+    offset = 0
+    typestr = TypeString(Type.INT)
+    if name not in state.tags:
+        state.error(f"nonexistant member {name}")
+    else:
+        symbol = state.tags[name]
+        if symbol.storage != Storage.MEMBER:
+            state.error(f"{name} not a member")
+        else:
+            assert isinstance(symbol.offset, int)
+            offset = symbol.offset
+            typestr = symbol.typestr
+    if operator == '.' and node.label not in opinfo.ISLVAL:
+        state.error('missing required lval')
+    return Node("dot" if operator == "." else "arrow", typestr, [node, con(offset)])
 
 
 def con(i: int) -> Node:
