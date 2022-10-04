@@ -46,6 +46,7 @@ class ParseState:
         for table in self.symtab, self.tags:
             for name, symbol in table.copy().items():
                 if symbol.undef:
+                    assert symbol.local
                     self.error(f"undefined name {name}")
                 if symbol.local:
                     del table[name]

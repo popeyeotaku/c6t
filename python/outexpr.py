@@ -40,10 +40,10 @@ OPCODES: dict[str, str] = {
     "comma": "comma",
     "dot": "add",
     "arrow": "add",
-    'addr': '',
-    'deref': '',
-    'toint': 'toint',
-    'toflt': 'toflt',
+    "addr": "",
+    "deref": "",
+    "toint": "toint",
+    "toflt": "toflt",
 }
 OPCODES.update({assign: assign for assign in lexer.ASSIGNS.values()})
 
@@ -71,7 +71,7 @@ def asmexpr(state: ParseState, node: Node) -> None:
     opcode = OPCODES[node.label]
     if not opcode:
         return
-    if opcode in opinfo.SUPPORTS_FLOAT and any(
+    if opcode not in opinfo.NOFLTOP and any(
         (node.typestr.floating) for node in [node] + node.children
     ):
         opcode = "f" + opcode
@@ -114,7 +114,7 @@ def special(state: ParseState, node: Node) -> bool:
         state.asm(opcode)
         return True
     match node.label:
-        case 'addr':
+        case "addr":
             asmexpr(state, node[0])
         case "cond":
             raise NotImplementedError

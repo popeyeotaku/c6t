@@ -57,6 +57,7 @@ class TestExpr(unittest.TestCase):
             "toflt",
             "name L5",
             "fassign",
+            'eval',
             "retnull",
         ]
         state = ParseState("\n".join(source))

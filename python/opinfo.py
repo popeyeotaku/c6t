@@ -36,10 +36,14 @@ SUPPORTS_FLOAT = {
     "gequ",
     "equ",
     "nequ",
+    "toint",
 }
+SUPPORTS_FLOAT.update(ASSIGNS)
 
 LESSGREAT = {"less", "great", "lequ", "gequ"}
 
 CMP = {*LESSGREAT, "equ", "nequ"}
 
 ISINT = {*CMP}
+
+NOFLTOP = {"toint", "toflt"}

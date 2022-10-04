@@ -116,6 +116,12 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
     left = children[0] if children else None
     right = children[1] if len(children) > 1 else None
 
+    if (
+        any((child.typestr.floating for child in children))
+        and label not in opinfo.SUPPORTS_FLOAT
+    ):
+        state.error("floating type on non-floating operator")
+
     # Special cases
     match label:
         case "cond":
