@@ -159,7 +159,7 @@ ASSIGNS = {
 RE_NAME = r"[a-zA-Z_][a-zA-Z_0-9]*"
 RE_FCON = r"([0-9]*\.[0-9]+([eE][+-]?[0-9]+)?)|([0-9]+[eE][+-]?[0-9]+)"
 RE_CON = r"[0-9]+"
-RE_CHARCON = r'"(?:[^"\\]|\\.)*"'
+RE_CHARCON = r"'(?:[^'\\]|\\.)*'"
 RE_STRING = r'"(?:[^"\\]|\\.)*"'
 
 # The entry keyword is never used, but was at this time reserved for a
@@ -229,6 +229,14 @@ class Tokenizer:
 
     def _charcon(self) -> Token | None:
         """Try to parse a character constant."""
+        if match := self.source.matchre(RE_CHARCON):
+            con = 0
+            chars = match[0][1:-1]
+            i = 0
+            while i < len(chars):
+                char, i = self.dochar(chars, i)
+                con = util.word((con << 8) | (char[0] & 0xFF))
+            return self._token("con", con)
         return None
 
     def _string(self) -> Token | None:

@@ -44,3 +44,11 @@ class Lexer(unittest.TestCase):
             self.assertEqual(label, token.label)
             if value is not None:
                 self.assertEqual(value, token.value)
+
+    def test_charcon(self):
+        """Test character constants."""
+        tkn = lexer.Tokenizer("'12' '34'")
+        values = (0x3132, 0x3334)
+        for token, value in zip(tkn, values):
+            self.assertEqual(token.label, "con")
+            self.assertEqual(token.value, value)
