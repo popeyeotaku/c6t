@@ -154,7 +154,7 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
                 return node
             if left.label not in opinfo.ISLVAL:
                 state.error("expected an lval")
-            return Node(label, TypeString(Type.POINT, *left.typestr))
+            return Node(label, TypeString(Type.POINT, *left.typestr), [left])
         case _:
             pass
     if label in opinfo.NEEDLVAL:

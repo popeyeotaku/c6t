@@ -10,7 +10,7 @@ class C6TCrash(BaseException):
     """The C6T compiler crashed."""
 
 
-# pylint: disable=too-many-instance-attributes
+# pylint: disable=too-many-instance-attributes, too-many-public-methods
 class ParseState:
     """Shared state for the C6T frontend parser."""
 

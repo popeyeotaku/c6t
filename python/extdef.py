@@ -78,7 +78,7 @@ def funcdef(state: ParseState, name: str, args: list[str], typestr: TypeString) 
     state.goseg("text")
     state.deflabel("_" + name)
     state.pseudo("export", "_" + name)
-    symbol = Symbol(Storage.EXTERN, "_" + name, typestr)
+    symbol = Symbol(Storage.EXTERN, name, typestr)
     state.symtab[name] = symbol
     state.golocal()
     grabparams(state, args)
