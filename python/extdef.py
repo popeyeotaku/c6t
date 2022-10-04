@@ -84,6 +84,7 @@ def funcdef(state: ParseState, name: str, args: list[str], typestr: TypeString) 
     grabparams(state, args)
     state.need("{")
     grablocals(state)
+    state.goseg('text')
     while not state.match("}"):
         state.earlyeof()
         statement.statement(state)
@@ -163,10 +164,9 @@ def local_callback(
             offset = "_" + name
         case Storage.STATIC:
             offset = state.static()
-            oldseg = state.goseg("bss")
+            state.goseg("bss")
             state.defstatic(offset)
             state.pseudo("ds", str(typestr.size))
-            state.goseg(oldseg)
         case Storage.AUTO:
             state.auto_offset -= typestr.size
             offset = state.auto_offset

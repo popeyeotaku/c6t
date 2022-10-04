@@ -21,7 +21,7 @@ UNARY = (
 
 COMMUTATIVE = {"add", "mult", "and", "or", "eor"}
 
-NEEDLVAL = {*lexer.ASSIGNS.values(), "postinc", "preinc", "postdec", "predec", "dot"}
+NEEDLVAL = {*ASSIGNS, "postinc", "preinc", "postdec", "predec", "dot"}
 
 ISLVAL = {"name", "deref", "arrow", "dot"}
 

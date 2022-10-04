@@ -176,11 +176,14 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
     pntlab = "mult"
 
     if label in opinfo.ASSIGNS:
-        typestr = left.typestr
-        if conversion == Type.POINT:
-            conversion = None
-        # TODO: check original leftc algorithm here
-    elif label == "colon" and left.typestr.pointer and left.typestr == right.typestr:
+        if left.typestr.pointer and right.typestr.floating:
+            state.error("cannot assign float to a pointer type")
+        if left.typestr.floating and not right.typestr.floating:
+            right = build(state, "toflt", right)
+        elif right.typestr.floating and not left.typestr.floating:
+            right = build(state, "toint", right)
+        return Node(label, right.typestr, [left, right])
+    if label == "colon" and left.typestr.pointer and left.typestr == right.typestr:
         conversion = None
     elif label in opinfo.CMP:
         if label in opinfo.LESSGREAT and conversion == Type.POINT:
@@ -447,7 +450,7 @@ def expr14(state: ParseState) -> Node:
     """Handle assignment operators."""
     node = expr13(state)
     while tkn := state.match(*lexer.ASSIGNS.keys()):
-        node = build(state, lexer.ASSIGNS[tkn.label], expr14(state))
+        node = build(state, lexer.ASSIGNS[tkn.label], node, expr14(state))
     return node
 
 

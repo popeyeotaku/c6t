@@ -3,11 +3,12 @@
 import typing
 import unittest
 
+import extdef
 from c6tstate import ParseState
 from expr import Node, expression
 from outexpr import outexpr
+from symtab import Storage, Symbol
 from type6 import Type, TypeString
-from symtab import Symbol, Storage
 
 
 def inode(label: str, *children: Node, value: typing.Any = None) -> Node:
@@ -17,6 +18,52 @@ def inode(label: str, *children: Node, value: typing.Any = None) -> Node:
 
 class TestExpr(unittest.TestCase):
     """Test expression parser."""
+
+    def test_assign(self):
+        """Test assign statements."""
+        source = [
+            "foo(bar)",
+            "float bar;",
+            "{",
+            "static a, *b;",
+            "static double x, *y;",
+            "static float z;",
+            "z = a = *b = x = *y = bar;",
+            "}",
+        ]
+        response = [
+            "_foo:.export _foo",
+            ".bss",
+            "L1:.ds 2",
+            "L2:.ds 2",
+            "L3:.ds 8",
+            "L4:.ds 2",
+            "L5:.ds 4",
+            ".text",
+            "useregs 0",
+            "auto 10",
+            "dload",
+            "name L4",
+            "load",
+            "dassign",
+            "name L3",
+            "dassign",
+            "toint",
+            "name L2",
+            "load",
+            "assign",
+            "name L1",
+            "assign",
+            "toflt",
+            "name L5",
+            "fassign",
+            "retnull",
+        ]
+        state = ParseState("\n".join(source))
+        extdef.extdef(state)
+        self.assertTrue(state.eof())
+        self.assertEqual(state.errcount, 0)
+        self.assertEqual(state.out_ir.splitlines(keepends=False), response)
 
     def test_string(self):
         """Test string output."""

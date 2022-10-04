@@ -40,6 +40,10 @@ OPCODES: dict[str, str] = {
     "comma": "comma",
     "dot": "add",
     "arrow": "add",
+    'addr': '',
+    'deref': '',
+    'toint': 'toint',
+    'toflt': 'toflt',
 }
 OPCODES.update({assign: assign for assign in lexer.ASSIGNS.values()})
 
@@ -65,6 +69,8 @@ def asmexpr(state: ParseState, node: Node) -> None:
     if node.label not in OPCODES:
         raise ValueError(node.label)
     opcode = OPCODES[node.label]
+    if not opcode:
+        return
     if opcode in opinfo.SUPPORTS_FLOAT and any(
         (node.typestr.floating) for node in [node] + node.children
     ):
@@ -100,8 +106,15 @@ def special(state: ParseState, node: Node) -> bool:
     """Check if a node is special cased for assembly - if so, assmble it and
     return True. Else, do nothing and return False.
     """
+    if node.label in opinfo.ASSIGNS:
+        opcode = typechar(node[0].typestr) + node.label
+        asmexpr(state, node[1])
+        rval(state, node[1])
+        asmexpr(state, node[0])
+        state.asm(opcode)
+        return True
     match node.label:
-        case "addr" | "deref":
+        case 'addr':
             asmexpr(state, node[0])
         case "cond":
             raise NotImplementedError
@@ -110,9 +123,7 @@ def special(state: ParseState, node: Node) -> bool:
             oldseg = state.goseg("string")
             static = state.static()
             state.defstatic(static)
-            state.pseudo(
-                "db", *(str(char) for char in node.value)
-            )
+            state.pseudo("db", *(str(char) for char in node.value))
             state.goseg(oldseg)
             state.asm("name", f"L{static}")
         case "name":
