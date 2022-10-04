@@ -209,7 +209,8 @@ def typedecl_list(
             state.earlyeof()
             name, typestr, args, grabbed = decl(state, basetype)
             if not grabbed:
-                state.need(";")
+                if not state.need(";"):
+                    return gotany
                 break
             gotany = True
             if callback(state, count, name, args, typestr, storage):

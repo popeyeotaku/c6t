@@ -154,7 +154,11 @@ def special(state: ParseState, node: Node) -> bool:
             state.asm("call")
         case "preinc" | "predec" | "postinc" | "postdec":
             asmexpr(state, node[0])
-            state.asm("con", str(node[0].typestr.sizenext()))
+            if node[0].typestr.pointer:
+                size = node[0].typestr.sizenext()
+            else:
+                size = 1
+            state.asm("con", str(size))
             state.asm(node.label)
         case _:
             return False

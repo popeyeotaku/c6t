@@ -80,7 +80,7 @@ def forstate(state: ParseState, stks: StateStks) -> None:
     if state.match(";"):
         init = None
     else:
-        init = expr.expression(state)
+        init = expr.expression(state, post_to_pre=True)
         state.need(";")
     if state.match(";"):
         check = None
@@ -90,22 +90,29 @@ def forstate(state: ParseState, stks: StateStks) -> None:
     if state.match(")"):
         update = None
     else:
-        update = expr.expression(state)
+        update = expr.expression(state, post_to_pre=True)
         state.need(")")
     if init:
         outexpr.outexpr(state, init)
         state.asm("eval")
     stks["contstk"].append(state.static())
     stks["brkstk"].append(state.static())
-    state.defstatic(stks["contstk"][-1])
+    if update:
+        static = state.static()
+    else:
+        static = stks["contstk"][-1]
+    state.defstatic(static)
     if check:
         outexpr.outexpr(state, check)
         state.brz(stks["brkstk"][-1])
     statement(state, stks)
     if update:
+        state.defstatic(stks["contstk"][-1])
         outexpr.outexpr(state, update)
         state.asm("eval")
-    state.jmpstatic(stks["contstk"][-1])
+        state.jmpstatic(static)
+    else:
+        state.jmpstatic(stks["contstk"][-1])
     state.defstatic(stks["brkstk"][-1])
     stks["brkstk"].pop()
     stks["contstk"].pop()
