@@ -142,14 +142,16 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
         case "deref":
             assert left is not None
             if left.label == "addr":
-                return left
+                # pylint:disable=unsubscriptable-object
+                return left[0]
             if not left.typestr.pointer:
                 state.error("deref of non-pointer")
             return Node(label, left.typestr.pop(), children)
         case "addr":
             assert left is not None
             if left.label == "deref":
-                node = left.copy()
+                # pylint:disable=unsubscriptable-object
+                node = left[0].copy()
                 node.typestr = TypeString(Type.POINT, *node.typestr)
                 return node
             if left.label not in opinfo.ISLVAL:
