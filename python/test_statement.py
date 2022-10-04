@@ -121,6 +121,21 @@ class StateTest(unittest.TestCase):
             ],
         )
 
+    def test_goto(self):
+        """Test goto statements."""
+        self.dosrc(
+            ["foo()", "{", "goto A;", "B:goto B;", "A:", ";", "}"],
+            [
+                "_foo:.export _foo",
+                "useregs 0",
+                "name L1",
+                "goto",
+                "L2:name L2",
+                "goto",
+                "L1:retnull",
+            ],
+        )
+
     def test_for(self):
         """Test for statements."""
         self.dosrc(
