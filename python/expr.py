@@ -206,16 +206,28 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
             if right.typestr.floating:
                 right = build(state, "toint", right)
         case Type.POINT:
+            if label == "sub":
+                typestr = TypeString(Type.INT)
+                return fold(
+                    Node(
+                        "div",
+                        TypeString(Type.INT),
+                        [
+                            fold(Node("sub", TypeString(Type.INT), [left, right])),
+                            con(left.typestr.sizenext()),
+                        ],
+                    )
+                )
             if left.typestr.pointer:
                 typestr = left.typestr
                 sizenext = typestr.sizenext()
                 if sizenext != 1:
-                    right = build(state, 'mult', right, con(sizenext))
+                    right = build(state, "mult", right, con(sizenext))
             else:
                 typestr = right.typestr
                 sizenext = typestr.sizenext()
                 if sizenext != 1:
-                    left = build(state, 'mult', left, con(sizenext))
+                    left = build(state, "mult", left, con(sizenext))
         case Type.FLOAT:
             typestr = TypeString(Type.DOUBLE)
             if not left.typestr.floating:
@@ -226,8 +238,6 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
             raise ValueError(conversion)
     if label in opinfo.ISINT:
         typestr = TypeString(Type.INT)
-    if label == 'sub' and left.typestr == right.typestr:
-        node = Node('div', TypeString(Type.INT), [left, right])
     return fold(Node(label, typestr, [left, right]))
 
 
@@ -417,10 +427,10 @@ def expr1(state: ParseState) -> Node:
 
 def expr2(state: ParseState) -> Node:
     """Unary operators."""
-    if tkn := state.match("*", "&", "-", "!", "++", "--", "sizeof", '~'):
+    if tkn := state.match("*", "&", "-", "!", "++", "--", "sizeof", "~"):
         match tkn.label:
-            case '~':
-                node = build(state, 'compl', expr2(state))
+            case "~":
+                node = build(state, "compl", expr2(state))
             case "*":
                 node = build(state, "deref", expr2(state))
             case "&":
