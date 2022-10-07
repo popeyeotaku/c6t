@@ -12,6 +12,7 @@ gets passed a callback function for different situations.
 import math
 from typing import Callable, Literal
 
+import expr
 import statement
 from c6tstate import MAXREGS, ParseState
 from expr import conexpr
@@ -131,7 +132,11 @@ def dataelem(state: ParseState, typestr: TypeString) -> int:
     except ValueError:
         state.error("bad type for an initializer")
         return 0
-    name, con = dataexpr(state)
+    try:
+        name, con = dataexpr(state)
+    except ValueError:
+        state.error("bad data initializer")
+        return 0
     if isinstance(con, float):
         assert name is None
         if basetype.label not in (Type.FLOAT, Type.DOUBLE):
@@ -167,7 +172,53 @@ def dataexpr(state: ParseState) -> tuple[str | None, int | float]:
     extern NAME, an integer or floating constant, or an extern plus an integer
     constant. Return these values.
     """
-    raise NotImplementedError
+    node = expr.expression(state, seecommas=False)
+    if (con := datacon(node)) is not None:
+        return None, con
+    if (name := dataname(node)) is not None:
+        return name, 0
+    if node.label == "add":
+        name, con = dataname(node[0]), datacon(node[1])
+        if name is None or not isinstance(con, int):
+            con, name = datacon(node[0]), dataname(node[1])
+        if name is None or not isinstance(con, int):
+            raise ValueError(node)
+        return name, con
+    if node.label == "sub":
+        name, con = dataname(node[0]), datacon(node[1])
+        if name is None or not isinstance(con, int):
+            raise ValueError(node)
+        # pylint:disable=invalid-unary-operand-type
+        return name, -con
+    if node.label == "addr" and node[0].label == "dot":
+        assert node[0][0].label == "name"
+        assert isinstance(node[0][0].value, Symbol)
+        assert isinstance(node[0][0].value.offset, str)
+        assert node[0][1].label == "con"
+        assert isinstance(node[0][1].value, int)
+        return node[0][0].value.offset, node[0][1].value
+    raise ValueError(node)
+
+
+def datacon(node: expr.Node) -> int | float | None:
+    """Return if the node is a valid data initializer constant (con or fcon),
+    returning its value if so or None if not.
+    """
+    if node.label in ("con", "fcon"):
+        assert isinstance(node.value, (int, float))
+        return node.value
+    return None
+
+
+def dataname(node: expr.Node) -> str | None:
+    """Checks if the node is a valid data initializer NAME
+    (addr -> name node). If so, return the node name. Else, return None.
+    """
+    if node.label == "addr" and node[0].label == "name":
+        assert isinstance(node[0].value, Symbol)
+        assert isinstance(node[0].value.offset, str)
+        return node[0].value.offset
+    return None
 
 
 def funcdef(state: ParseState, name: str, args: list[str], typestr: TypeString) -> None:
