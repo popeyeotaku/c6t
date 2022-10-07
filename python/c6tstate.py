@@ -57,10 +57,10 @@ class ParseState:
         assert label > 0
         self.asm("jmp", f"L{label}")
 
-    def brz(self, label: int) -> None:
+    def brz(self, label: int, fltflag: bool = False) -> None:
         """Assemble a brz to a static label."""
         assert label > 0
-        self.asm("brz", f"L{label}")
+        self.asm(f"{'f' if fltflag else ''}brz", f"L{label}")
 
     def defstatic(self, label: int) -> None:
         """Define a static label here."""

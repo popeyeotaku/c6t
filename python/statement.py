@@ -31,8 +31,10 @@ StateFunc = Callable[[ParseState, StateStks], None]
 def ifstate(state: ParseState, stks: StateStks) -> None:
     """Parse an if statement."""
     lab1 = state.static()
-    outexpr.outexpr(state, parenexpr(state))
-    state.brz(lab1)
+    node = parenexpr(state)
+    fltflag = node.typestr.floating
+    outexpr.outexpr(state, node)
+    state.brz(lab1, fltflag)
     statement(state, stks)
     if state.match("else"):
         lab2 = state.static()
@@ -49,8 +51,10 @@ def whilestate(state: ParseState, stks: StateStks) -> None:
     stks["contstk"].append(state.static())
     stks["brkstk"].append(state.static())
     state.defstatic(stks["contstk"][-1])
-    outexpr.outexpr(state, parenexpr(state))
-    state.brz(stks["brkstk"][-1])
+    node = parenexpr(state)
+    fltflag = node.typestr.floating
+    outexpr.outexpr(state, node)
+    state.brz(stks["brkstk"][-1], fltflag)
     statement(state, stks)
     state.jmpstatic(stks["contstk"][-1])
     state.defstatic(stks["brkstk"][-1])
@@ -70,7 +74,7 @@ def dostate(state: ParseState, stks: StateStks) -> None:
     state.need(";")
     state.defstatic(stks["contstk"][-1])
     outexpr.outexpr(state, node)
-    state.brz(stks["brkstk"][-1])
+    state.brz(stks["brkstk"][-1], node.typestr.floating)
     state.jmpstatic(static)
     state.defstatic(stks["brkstk"][-1])
     stks["brkstk"].pop()
@@ -107,7 +111,7 @@ def forstate(state: ParseState, stks: StateStks) -> None:
     state.defstatic(static)
     if check:
         outexpr.outexpr(state, check)
-        state.brz(stks["brkstk"][-1])
+        state.brz(stks["brkstk"][-1], check.typestr.floating)
     statement(state, stks)
     if update:
         state.defstatic(stks["contstk"][-1])
@@ -192,9 +196,9 @@ def retstate(state: ParseState, stks: StateStks) -> None:
     if state.match(";"):
         retnull(state)
     else:
-        outexpr.outexpr(state, parenexpr(state))
+        outexpr.outexpr(state, (node :=parenexpr(state)))
         state.need(";")
-        state.asm("ret")
+        state.asm(f"{'f' if node.typestr.floating else ''}ret")
 
 
 # pylint:disable=unused-argument
@@ -297,9 +301,11 @@ def parenexpr(state: ParseState) -> expr.Node:
     return node
 
 
-def doswitch(state: ParseState, node: expr.Node, cases: CaseCollection, brklab:int) -> None:
+def doswitch(
+    state: ParseState, node: expr.Node, cases: CaseCollection, brklab: int
+) -> None:
     """Assemble a switch statement."""
-    assert state.curseg == 'text'
+    assert state.curseg == "text"
     state.goseg("data")
     table = state.static()
     state.defstatic(table)
