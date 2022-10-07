@@ -310,11 +310,13 @@ def local_callback(
 ) -> bool:
     """Callback function for seeing a declaration of a local."""
     assert state.localscope
+    if typestr[0].label == Type.FUNC:
+        storage = Storage.EXTERN
     if storage == Storage.REGISTER and state.usedregs >= MAXREGS:
         storage = Storage.AUTO
     match storage:
         case Storage.EXTERN:
-            offset = "_" + name
+            offset = name
         case Storage.STATIC:
             offset = state.static()
             state.goseg("bss")
