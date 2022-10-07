@@ -505,6 +505,8 @@ def grabstruct(state: ParseState) -> TypeElem:
         else:
             if state.tags[name].offset != membersize:
                 state.error(f"bad struct redef {name}")
+    elif membersize is not None and name is None:
+        return TypeElem(Type.STRUCT, size)
     else:
         raise ValueError(membersize, name)
     return TypeElem(Type.STRUCT, size)

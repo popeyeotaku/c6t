@@ -423,8 +423,10 @@ def expr1(state: ParseState) -> Node:
 
 def expr2(state: ParseState) -> Node:
     """Unary operators."""
-    if tkn := state.match("*", "&", "-", "!", "++", "--", "sizeof"):
+    if tkn := state.match("*", "&", "-", "!", "++", "--", "sizeof", '~'):
         match tkn.label:
+            case '~':
+                node = build(state, 'compl', expr2(state))
             case "*":
                 node = build(state, "deref", expr2(state))
             case "&":

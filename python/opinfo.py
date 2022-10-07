@@ -17,6 +17,7 @@ UNARY = (
     "postdec",
     "toint",
     "toflt",
+    'compl',
 )
 
 COMMUTATIVE = {"add", "mult", "and", "or", "eor"}

@@ -18,6 +18,7 @@ class FuncTest(unittest.TestCase):
             "struct foobar { int foo; struct foobar *bar; };",
             "struct foobar foostk[] { 0, foostk, 1, &foostk[1], 2, &foostk[2], -1 };",
             "int foosize sizeof(foostk);",
+            "float ffoo 1; int fbar 2.0;",
         ]
         response = [
             ".data",
@@ -39,6 +40,10 @@ class FuncTest(unittest.TestCase):
             ".ds 2",
             "_foosize:.export _foosize",
             ".dw 16",
+            "_ffoo:.export _ffoo",
+            ".df 1",
+            "_fbar:.export _fbar",
+            ".dd 2.0",
         ]
         self.cmpsrc(source, response)
 
