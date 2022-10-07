@@ -9,7 +9,8 @@ in many different places, we have a special function to handle one which
 gets passed a callback function for different situations.
 """
 
-from typing import Callable
+import math
+from typing import Callable, Literal
 
 import statement
 from c6tstate import MAXREGS, ParseState
@@ -69,6 +70,102 @@ def datainit(state: ParseState, name: str, typestr: TypeString) -> None:
 
     The symbol table entry has already been filled, remember to adjust it if
     necessary (array bounds changed, etc).
+    """
+    assert not state.peekmatch(",", ";")
+    state.goseg("data")
+    state.deflabel("_" + name)
+    if (
+        state.peekmatch("string")
+        and len(typestr) == 2
+        and typestr[0].label == Type.ARRAY
+        and typestr[1].label == Type.CHAR
+    ):
+        token = state.match("string")
+        assert token is not None and isinstance(token.value, bytes)
+        state.pseudo("db", *(str(byte) for byte in token.value))
+        realbytes = len(token.value)
+    else:
+        if state.peekmatch("{"):
+            realbytes = datalist(state, typestr)
+        else:
+            realbytes = dataelem(state, typestr)
+    if typestr[0].label == Type.ARRAY:
+        if realbytes > typestr.size:
+            arraysize = math.ceil(realbytes / typestr.sizenext())
+            typestr = TypeString(TypeElem(Type.ARRAY, arraysize), *typestr.pop())
+    assert realbytes <= typestr.size
+    if realbytes < typestr.size:
+        state.pseudo("ds", str(realbytes - typestr.size))
+
+
+def datalist(state: ParseState, typestr: TypeString) -> int:
+    """Parse a comma seperated list of data expressions, outputting them, and
+    returning the total output size in bytes.
+    """
+    state.need("{")
+    realsize = 0
+    while not state.match("}"):
+        state.earlyeof()
+        realsize += dataelem(state, typestr)
+        if not state.peekmatch("}"):
+            state.need(",")
+    return realsize
+
+
+INIT_TYPE_CODES = {Type.INT: "w", Type.CHAR: "c", Type.FLOAT: "f", Type.DOUBLE: "d"}
+
+
+def sign(i: int | float) -> Literal["-"] | Literal["+"]:
+    """Return a sign character for the number."""
+    if i < 0:
+        return "-"
+    return "+"
+
+
+def dataelem(state: ParseState, typestr: TypeString) -> int:
+    """Parse a single expression in a data initializer, output it, and return
+    the total size in bytes.
+    """
+    try:
+        basetype = init_type(typestr)
+    except ValueError:
+        state.error("bad type for an initializer")
+        return 0
+    name, con = dataexpr(state)
+    if isinstance(con, float):
+        assert name is None
+        if basetype.label not in (Type.FLOAT, Type.DOUBLE):
+            basetype = TypeElem(Type.DOUBLE)
+    code = INIT_TYPE_CODES[basetype.label]
+    if name and con:
+        state.pseudo(f"d{code}", f"_{name}{sign(con)}{abs(con)}")
+    elif name:
+        state.pseudo(f"d{code}", f"_{name}")
+    else:
+        state.pseudo(f"d{code}", str(con))
+    return basetype.size
+
+
+def init_type(typestr: TypeString) -> TypeElem:
+    """Return the base init type for a data initializer from the given
+    TypeString. In other words, which data type should be output in the
+    initializer assembly.
+    """
+    match typestr[0].label:
+        case Type.POINT | Type.STRUCT | Type.INT:
+            return TypeElem(Type.INT)
+        case Type.FUNC:
+            raise ValueError(typestr)
+        case Type.ARRAY:
+            return init_type(typestr.pop())
+        case Type.CHAR | Type.FLOAT | Type.DOUBLE:
+            return typestr[0]
+
+
+def dataexpr(state: ParseState) -> tuple[str | None, int | float]:
+    """Parse a data initializer expression. It should resolve to either an
+    extern NAME, an integer or floating constant, or an extern plus an integer
+    constant. Return these values.
     """
     raise NotImplementedError
 
