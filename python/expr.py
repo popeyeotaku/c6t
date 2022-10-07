@@ -197,12 +197,6 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
             label = "u" + label
         if conversion == Type.POINT:
             conversion = None
-    if conversion == Type.POINT and label == "sub":
-        subflag = True
-        pntlab = "div"
-    else:
-        subflag = False
-        pntlab = "mult"
     match conversion:
         case None:
             pass
@@ -216,14 +210,12 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
                 typestr = left.typestr
                 sizenext = typestr.sizenext()
                 if sizenext != 1:
-                    right = build(state, pntlab, right, con(sizenext))
+                    right = build(state, 'mult', right, con(sizenext))
             else:
                 typestr = right.typestr
                 sizenext = typestr.sizenext()
                 if sizenext != 1:
-                    left = build(state, pntlab, left, con(sizenext))
-            if subflag:
-                typestr = TypeString(Type.INT)
+                    left = build(state, 'mult', left, con(sizenext))
         case Type.FLOAT:
             typestr = TypeString(Type.DOUBLE)
             if not left.typestr.floating:
@@ -234,6 +226,8 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
             raise ValueError(conversion)
     if label in opinfo.ISINT:
         typestr = TypeString(Type.INT)
+    if label == 'sub' and left.typestr == right.typestr:
+        node = Node('div', TypeString(Type.INT), [left, right])
     return fold(Node(label, typestr, [left, right]))
 
 
@@ -409,7 +403,7 @@ def expr1(state: ParseState) -> Node:
                 if state.match(")"):
                     node = build(state, "ucall", node)
                 else:
-                    args = expr15(state)
+                    args = build(state, "", expr15(state))
                     state.need(")")
                     node = build(state, "call", node, args)
             case "." | "->":
