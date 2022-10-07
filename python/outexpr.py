@@ -101,15 +101,28 @@ def typechar(typestr: TypeString) -> TypeChar:
             raise ValueError(typestr[0].label)
 
 
+def con0(node:Node) -> bool:
+    """Return a flag for if the node is constant zero."""
+    return node.label == 'con' and node.value == 0
+
 def special(state: ParseState, node: Node) -> bool:
     """Check if a node is special cased for assembly - if so, assmble it and
     return True. Else, do nothing and return False.
     """
-    if node.label in opinfo.ASSIGNS:
-        opcode = typechar(node[0].typestr) + node.label
+    if node.label in ('dot', "add", "arrow", "sub") and con0(node[1]):
+        asmexpr(state, node[0])
+        if node.label != 'dot':
+            rval(state, node[0])
+        return True
+    if node.label == "add" and con0(node[0]):
         asmexpr(state, node[1])
         rval(state, node[1])
+        return True
+    if node.label in opinfo.ASSIGNS:
+        opcode = typechar(node[0].typestr) + node.label
         asmexpr(state, node[0])
+        asmexpr(state, node[1])
+        rval(state, node[1])
         state.asm(opcode)
         return True
     match node.label:
