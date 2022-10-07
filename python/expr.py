@@ -181,7 +181,6 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
         right.typestr = TypeString(Type.INT)
 
     conversion: Type | None = stdconv(left, right)
-    pntlab = "mult"
 
     if label in opinfo.ASSIGNS:
         if left.typestr.pointer and right.typestr.floating:
@@ -198,10 +197,12 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
             label = "u" + label
         if conversion == Type.POINT:
             conversion = None
-    if conversion == Type.POINT:
-        if label == "sub":
-            typestr = TypeString(Type.INT)
-            pntlab = "div"
+    if conversion == Type.POINT and label == "sub":
+        subflag = True
+        pntlab = "div"
+    else:
+        subflag = False
+        pntlab = "mult"
     match conversion:
         case None:
             pass
@@ -215,12 +216,14 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
                 typestr = left.typestr
                 sizenext = typestr.sizenext()
                 if sizenext != 1:
-                    right = Node(pntlab, typestr, [right, con(sizenext)])
+                    right = build(state, pntlab, right, con(sizenext))
             else:
                 typestr = right.typestr
                 sizenext = typestr.sizenext()
                 if sizenext != 1:
-                    left = Node(pntlab, typestr, [left, con(sizenext)])
+                    left = build(state, pntlab, left, con(sizenext))
+            if subflag:
+                typestr = TypeString(Type.INT)
         case Type.FLOAT:
             typestr = TypeString(Type.DOUBLE)
             if not left.typestr.floating:
@@ -347,8 +350,8 @@ def domember(state: ParseState, node: Node, name: str, operator: str) -> Node:
             assert isinstance(symbol.offset, int)
             offset = symbol.offset
             typestr = symbol.typestr
-    if operator == '.' and node.label not in opinfo.ISLVAL:
-        state.error('missing required lval')
+    if operator == "." and node.label not in opinfo.ISLVAL:
+        state.error("missing required lval")
     return Node("dot" if operator == "." else "arrow", typestr, [node, con(offset)])
 
 

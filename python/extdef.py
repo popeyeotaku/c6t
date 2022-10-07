@@ -58,6 +58,7 @@ def datadef(state: ParseState, name: str, typestr: TypeString) -> None:
     state.redef(name)
     state.symtab[name] = symbol
     if symbol.typestr[0].label == Type.FUNC:
+        assert state.peekmatch(",", ";")
         return
     if state.peekmatch(",", ";"):
         state.goseg("bss")
@@ -75,6 +76,7 @@ def datainit(state: ParseState, name: str, typestr: TypeString) -> None:
     assert not state.peekmatch(",", ";")
     state.goseg("data")
     state.deflabel("_" + name)
+    state.pseudo("export", "_" + name)
     if (
         state.peekmatch("string")
         and len(typestr) == 2
@@ -94,9 +96,9 @@ def datainit(state: ParseState, name: str, typestr: TypeString) -> None:
         if realbytes > typestr.size:
             arraysize = math.ceil(realbytes / typestr.sizenext())
             typestr = TypeString(TypeElem(Type.ARRAY, arraysize), *typestr.pop())
-    assert realbytes <= typestr.size
-    if realbytes < typestr.size:
-        state.pseudo("ds", str(realbytes - typestr.size))
+    if typestr.size > realbytes:
+        state.pseudo("ds", str(typestr.size - realbytes))
+    state.symtab[name].typestr = typestr
 
 
 def datalist(state: ParseState, typestr: TypeString) -> int:
@@ -113,7 +115,7 @@ def datalist(state: ParseState, typestr: TypeString) -> int:
     return realsize
 
 
-INIT_TYPE_CODES = {Type.INT: "w", Type.CHAR: "c", Type.FLOAT: "f", Type.DOUBLE: "d"}
+INIT_TYPE_CODES = {Type.INT: "w", Type.CHAR: "b", Type.FLOAT: "f", Type.DOUBLE: "d"}
 
 
 def sign(i: int | float) -> Literal["-"] | Literal["+"]:

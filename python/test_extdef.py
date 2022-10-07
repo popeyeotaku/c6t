@@ -11,6 +11,37 @@ from type6 import Type, TypeElem
 class FuncTest(unittest.TestCase):
     """Test function definitions."""
 
+    def test_datainit(self):
+        """Test data initializers."""
+        source = [
+            'char foo[] "foo", bar[] "bar", *foobar[] { foo, bar };',
+            "struct foobar { int foo; struct foobar *bar; };",
+            "struct foobar foostk[] { 0, foostk, 1, &foostk[1], 2, &foostk[2], -1 };",
+            "int foosize sizeof(foostk);",
+        ]
+        response = [
+            ".data",
+            "_foo:.export _foo",
+            ".db 102,111,111,0",
+            "_bar:.export _bar",
+            ".db 98,97,114,0",
+            "_foobar:.export _foobar",
+            ".dw _foo",
+            ".dw _bar",
+            "_foostk:.export _foostk",
+            ".dw 0",
+            ".dw _foostk",
+            ".dw 1",
+            ".dw _foostk+4",
+            ".dw 2",
+            ".dw _foostk+8",
+            ".dw 65535",
+            ".ds 2",
+            "_foosize:.export _foosize",
+            ".dw 16",
+        ]
+        self.cmpsrc(source, response)
+
     def test_params_locals(self):
         """Test a function definition with parameters and locals."""
         source = ["foobar(foo, bar)", "int *foo;", "{", "return (foo[bar]);", "}"]
@@ -28,6 +59,7 @@ class FuncTest(unittest.TestCase):
             "ret",
             "retnull",
         ]
+
         self.cmpsrc(source, response)
 
     def test_func_with_locals(self):
