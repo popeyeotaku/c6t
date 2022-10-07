@@ -189,6 +189,8 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
             right = build(state, "toflt", right)
         elif right.typestr.floating and not left.typestr.floating:
             right = build(state, "toint", right)
+        elif left.typestr.pointer and label != "assign":
+            right = build(state, "mult", right, con(left.typestr.sizenext()))
         return Node(label, right.typestr, [left, right])
     if label == "colon" and left.typestr.pointer and left.typestr == right.typestr:
         conversion = None
@@ -207,14 +209,21 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
                 right = build(state, "toint", right)
         case Type.POINT:
             if label == "sub":
-                typestr = TypeString(Type.INT)
+                sizeleft, sizeright = (
+                    (node.typestr.sizenext() if node.typestr.pointer else 1)
+                    for node in (left, right)
+                )
+                size = max(sizeleft, sizeright)
+                subbed = fold(Node("sub", TypeString(Type.INT), [left, right]))
+                if size == 1:
+                    return subbed
                 return fold(
                     Node(
                         "div",
                         TypeString(Type.INT),
                         [
-                            fold(Node("sub", TypeString(Type.INT), [left, right])),
-                            con(left.typestr.sizenext()),
+                            subbed,
+                            con(size),
                         ],
                     )
                 )
