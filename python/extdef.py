@@ -55,7 +55,6 @@ def extdef_callback(
 def datadef(state: ParseState, name: str, typestr: TypeString) -> None:
     """Parse an externaldata definition, with a possible initializer."""
     symbol = Symbol(Storage.EXTERN, name, typestr)
-    state.redef(name)
     state.symtab[name] = symbol
     if symbol.typestr[0].label == Type.FUNC:
         assert state.peekmatch(",", ";")
