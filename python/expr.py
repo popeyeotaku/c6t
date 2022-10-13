@@ -13,8 +13,6 @@ import copy
 import dataclasses
 import typing
 
-from typing_extensions import Self
-
 import lexer
 import opinfo
 import util
@@ -46,7 +44,7 @@ class Node:
     def __iter__(self) -> typing.Iterator[Node]:
         return iter(self.children)
 
-    def copy(self) -> Self:
+    def copy(self) -> Node:
         """Return a duplicated version of the node."""
         return copy.deepcopy(self)
 

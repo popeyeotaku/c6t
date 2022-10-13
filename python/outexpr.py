@@ -10,7 +10,7 @@ from expr import Node
 from symtab import Storage, Symbol
 from type6 import Type, TypeString
 
-TypeChar = Literal[""] | Literal["c"] | Literal["f"] | Literal["d"]
+TypeChar = Literal["", "c", "f", "d"]
 
 OPCODES: dict[str, str] = {
     "neg": "neg",
@@ -101,17 +101,18 @@ def typechar(typestr: TypeString) -> TypeChar:
             raise ValueError(typestr[0].label)
 
 
-def con0(node:Node) -> bool:
+def con0(node: Node) -> bool:
     """Return a flag for if the node is constant zero."""
-    return node.label == 'con' and node.value == 0
+    return node.label == "con" and node.value == 0
+
 
 def special(state: ParseState, node: Node) -> bool:
     """Check if a node is special cased for assembly - if so, assmble it and
     return True. Else, do nothing and return False.
     """
-    if node.label in ('dot', "add", "arrow", "sub") and con0(node[1]):
+    if node.label in ("dot", "add", "arrow", "sub") and con0(node[1]):
         asmexpr(state, node[0])
-        if node.label != 'dot':
+        if node.label != "dot":
             rval(state, node[0])
         return True
     if node.label == "add" and con0(node[0]):

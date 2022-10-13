@@ -166,6 +166,7 @@ def init_type(typestr: TypeString) -> TypeElem:
             return init_type(typestr.pop())
         case Type.CHAR | Type.FLOAT | Type.DOUBLE:
             return typestr[0]
+    raise ValueError(typestr)
 
 
 def dataexpr(state: ParseState) -> tuple[str | None, int | float]:
@@ -309,6 +310,7 @@ def local_callback(
 ) -> bool:
     """Callback function for seeing a declaration of a local."""
     assert state.localscope
+    offset:int|str
     if typestr[0].label == Type.FUNC:
         storage = Storage.EXTERN
     if storage == Storage.REGISTER and state.usedregs >= MAXREGS:
@@ -496,8 +498,9 @@ def grabstruct(state: ParseState) -> TypeElem:
         if fillin:
             state.error(f"undefined struct tag {name}")
         else:
-            size = state.tags[name].offset
-            assert isinstance(size, int)
+            offset = state.tags[name].offset
+            assert isinstance(offset, int)
+            size = offset
     elif membersize is not None and name is not None:
         if fillin:
             size = membersize

@@ -1,11 +1,11 @@
 """C6T - C version 6 by Troy - Type System"""
 
+from __future__ import annotations
+
 import dataclasses
 import enum
 import functools
 import typing
-
-from typing_extensions import Self
 
 
 class Type(enum.Enum):
@@ -84,20 +84,12 @@ class TypeString(typing.Sequence[TypeElem]):
     def __len__(self) -> int:
         return len(self._elems)
 
-    @typing.overload
-    def __getitem__(self, i: slice) -> Self:
-        ...
+    def __getitem__(self, index: slice | typing.SupportsIndex):
+        if isinstance(index, slice):
+            return self.__class__(*self._elems[index])
+        return self._elems[index]
 
-    @typing.overload
-    def __getitem__(self, i: typing.SupportsIndex) -> TypeElem:
-        ...
-
-    def __getitem__(self, i: slice | typing.SupportsIndex):
-        if isinstance(i, slice):
-            return self.__class__(*self._elems[i])
-        return self._elems[i]
-
-    def pop(self) -> Self:
+    def pop(self) -> TypeString:
         """Return a copy of the type string with the first element removed."""
         return self[1:]
 

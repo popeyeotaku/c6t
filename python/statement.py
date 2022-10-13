@@ -22,7 +22,7 @@ class CaseCollection:
 
 
 StateStks = TypedDict(
-    "StateStks", contstk=list[int], brkstk=list[int], casestk=list[CaseCollection]
+    "StateStks", {'contstk':list[int], 'brkstk':list[int], 'casestk':list[CaseCollection]}
 )
 
 StateFunc = Callable[[ParseState, StateStks], None]

@@ -182,6 +182,7 @@ class Tokenizer:
         return Token(label, self.line, value)
 
     def __next__(self) -> Token:
+        token:None|Token
         self._whitespace()
         if self.source.eof:
             token = self._token("eof")
