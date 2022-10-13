@@ -56,7 +56,7 @@ class TypeElem:
         object.__setattr__(self, "size", size)
 
 
-class TypeString(typing.Sequence[TypeElem]):
+class TypeString:
     """A string describing a C6T type."""
 
     def __repr__(self) -> str:
@@ -73,6 +73,9 @@ class TypeString(typing.Sequence[TypeElem]):
         if any((elem.label not in MOD for elem in self._elems[:-1])):
             raise ValueError("all elements preceeding base type must be mod types")
 
+    def __iter__(self) -> typing.Iterator[TypeElem]:
+        return iter(self._elems)
+
     def __hash__(self) -> int:
         return hash(self._elems)
 
@@ -84,7 +87,15 @@ class TypeString(typing.Sequence[TypeElem]):
     def __len__(self) -> int:
         return len(self._elems)
 
-    def __getitem__(self, index: slice | typing.SupportsIndex):
+    @typing.overload
+    def __getitem__(self, index: slice) -> TypeString:
+        ...
+
+    @typing.overload
+    def __getitem__(self, index: int) -> TypeElem:
+        ...
+
+    def __getitem__(self, index):
         if isinstance(index, slice):
             return self.__class__(*self._elems[index])
         return self._elems[index]

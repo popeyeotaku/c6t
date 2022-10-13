@@ -173,7 +173,7 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
 
     assert left and right
 
-    if left.typestr[0].label == Type.STRUCT or right.typestr[0].label == Type.STRUCT:
+    if Type.STRUCT in (left.typestr[0].label, right.typestr[0].label):
         state.error("illegal structure operation")
         left.typestr = TypeString(Type.INT)
         right.typestr = TypeString(Type.INT)
