@@ -1,7 +1,10 @@
 """C6T - C version 6 by Troy - Symbol Table"""
 
+from __future__ import annotations
+
 import dataclasses
 import enum
+
 import type6
 
 
@@ -25,3 +28,22 @@ class Symbol:
     typestr: type6.TypeString
     local: bool = dataclasses.field(default=False, kw_only=True)
     undef: bool = dataclasses.field(default=False, kw_only=True)
+
+
+@dataclasses.dataclass(frozen=True)
+class FrozenSym:
+    """An immutable symbol."""
+
+    storage: Storage
+    offset: int | str
+    typestr: type6.TypeString
+    local: bool
+    undef: bool
+
+    @classmethod
+    def fromsym(cls, sym: Symbol) -> FrozenSym:
+        """Construct a FrozenSym from an existing symbol."""
+        return FrozenSym(sym.storage, sym.offset, sym.typestr, sym.local, sym.undef)
+
+
+SymType = Symbol | FrozenSym

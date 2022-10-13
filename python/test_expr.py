@@ -7,13 +7,13 @@ import extdef
 from c6tstate import ParseState
 from expr import Node, expression
 from outexpr import outexpr
-from symtab import Storage, Symbol
+from symtab import FrozenSym, Storage, Symbol
 from type6 import Type, TypeString
 
 
 def inode(label: str, *children: Node, value: typing.Any = None) -> Node:
     """Construct a node with type int."""
-    return Node(label, TypeString(Type.INT), list(children), value)
+    return Node(label, TypeString(Type.INT), tuple(children), value)
 
 
 class TestExpr(unittest.TestCase):
@@ -22,25 +22,20 @@ class TestExpr(unittest.TestCase):
     def test_cond(self):
         """Test ... ? ... : ... operators."""
         self.cmpsrc(
+            ["foobar(foo, bar)", "{", "return (foo ? bar : foo);", "}"],
             [
-                'foobar(foo, bar)',
-                '{',
-                'return (foo ? bar : foo);',
-                '}'
+                "_foobar:.export _foobar",
+                "useregs 0",
+                "auto 10",
+                "load",
+                "auto 12",
+                "load",
+                "auto 10",
+                "load",
+                "cond",
+                "ret",
+                "retnull",
             ],
-            [
-                '_foobar:.export _foobar',
-                'useregs 0',
-                'auto 10',
-                'load',
-                'auto 12',
-                'load',
-                'auto 10',
-                'load',
-                'cond',
-                'ret',
-                'retnull',
-            ]
         )
 
     def test_assign(self):
@@ -65,28 +60,28 @@ class TestExpr(unittest.TestCase):
             "L5:.ds 4",
             ".text",
             "useregs 0",
-            'name L5',
-            'name L1',
-            'name L2',
-            'load',
-            'name L3',
-            'name L4',
-            'load',
-            'auto 10',
-            'dload',
-            'dassign',
-            'dassign',
-            'toint',
-            'assign',
-            'assign',
-            'toflt',
-            'fassign',
-            'eval',
+            "name L5",
+            "name L1",
+            "name L2",
+            "load",
+            "name L3",
+            "name L4",
+            "load",
+            "auto 10",
+            "dload",
+            "dassign",
+            "dassign",
+            "toint",
+            "assign",
+            "assign",
+            "toflt",
+            "fassign",
+            "eval",
             "retnull",
         ]
         self.cmpsrc(source, response)
-    
-    def cmpsrc(self, source:list[str], response:list[str]):
+
+    def cmpsrc(self, source: list[str], response: list[str]):
         """Compare the source code to the output IR. Both source and response
         IR are in the format of a list of strings with one line per string.
         """
@@ -149,14 +144,16 @@ class TestExpr(unittest.TestCase):
             symbol,
             Symbol(Storage.EXTERN, "foo", TypeString(Type.FUNC, Type.INT), local=True),
         )
-        namenode = Node("name", TypeString(Type.FUNC, Type.INT), value=symbol)
+        namenode = Node(
+            "name", TypeString(Type.FUNC, Type.INT), value=FrozenSym.fromsym(symbol)
+        )
         other = inode(
             "call",
             namenode,
             Node(
                 "addr",
                 TypeString(Type.POINT, Type.FUNC, Type.INT),
-                [namenode],
+                (namenode,),
             ),
         )
         self.assertEqual(node, other)

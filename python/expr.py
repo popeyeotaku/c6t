@@ -16,7 +16,7 @@ import lexer
 import opinfo
 import util
 from c6tstate import ParseState
-from symtab import Storage, Symbol
+from symtab import Storage, Symbol, FrozenSym
 from type6 import Type, TypeElem, TypeString
 
 
@@ -408,7 +408,7 @@ def expr1(state: ParseState) -> Node:
         match tkn.label:
             case "name":
                 symbol = getsym(state, tkn.value)
-                node = Node("name", symbol.typestr, value=symbol)
+                node = Node("name", symbol.typestr, value=FrozenSym.fromsym(symbol))
             case "con":
                 node = con(tkn.value)
             case "fcon":

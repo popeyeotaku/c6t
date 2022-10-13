@@ -7,7 +7,7 @@ import opinfo
 import util
 from c6tstate import ParseState
 from expr import Node
-from symtab import Storage, Symbol
+from symtab import Storage, Symbol, SymType
 from type6 import Type, TypeString
 
 TypeChar = Literal["", "c", "f", "d"]
@@ -143,8 +143,8 @@ def special(state: ParseState, node: Node) -> bool:
             state.goseg(oldseg)
             state.asm("name", f"L{static}")
         case "name":
-            assert isinstance(node.value, Symbol)
-            symbol: Symbol = node.value
+            assert isinstance(node.value, SymType)
+            symbol: SymType = node.value
             match symbol.storage:
                 case Storage.AUTO:
                     assert isinstance(symbol.offset, int)
