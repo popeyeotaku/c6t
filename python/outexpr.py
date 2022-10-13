@@ -71,7 +71,7 @@ def asmexpr(state: ParseState, node: Node) -> None:
     if not opcode:
         return
     if opcode not in opinfo.NOFLTOP and any(
-        (node.typestr.floating) for node in [node] + node.children
+        (node.typestr.floating) for node in [node] + list(node.children)
     ):
         opcode = "f" + opcode
     state.asm(opcode)
@@ -143,6 +143,7 @@ def special(state: ParseState, node: Node) -> bool:
             state.goseg(oldseg)
             state.asm("name", f"L{static}")
         case "name":
+            assert isinstance(node.value, Symbol)
             symbol: Symbol = node.value
             match symbol.storage:
                 case Storage.AUTO:

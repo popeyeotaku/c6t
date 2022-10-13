@@ -9,7 +9,6 @@ secion 7.1, expr2 is section 7.2, etc.
 
 from __future__ import annotations
 
-import copy
 import dataclasses
 import typing
 
@@ -21,32 +20,51 @@ from symtab import Storage, Symbol
 from type6 import Type, TypeElem, TypeString
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class Node:
     """An expression node."""
 
     label: str
     typestr: TypeString
-    children: list[Node] = dataclasses.field(default_factory=list)
-    value: typing.Any = None
+    children: tuple[Node, ...] = ()
+    value: typing.Hashable = None
 
     @typing.overload
-    def __getitem__(self, i: slice) -> list[Node]:
+    def __getitem__(self, i: slice) -> tuple[Node, ...]:
         ...
 
     @typing.overload
     def __getitem__(self, i: int) -> Node:
         ...
 
-    def __getitem__(self, i: int | slice) -> Node | list[Node]:
+    def __getitem__(self, i: int | slice) -> Node | tuple[Node, ...]:
         return self.children[i]
 
     def __iter__(self) -> typing.Iterator[Node]:
         return iter(self.children)
 
-    def copy(self) -> Node:
-        """Return a duplicated version of the node."""
-        return copy.deepcopy(self)
+    def copy(
+        self, *, label: str | None = None, typestr: TypeString | None = None
+    ) -> Node:
+        """Return a shallow copy of the node, optionally with a new label or
+        type string.
+        """
+        if label is None:
+            label = self.label
+        if typestr is None:
+            typestr = self.typestr
+        return Node(label, typestr, self.children, self.value)
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.label,
+                self.typestr,
+                len(self.children),
+                frozenset(self.children),
+                self.value,
+            )
+        )
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Node):
@@ -60,11 +78,7 @@ class Node:
         if len(self.children) != len(other.children):
             return False
         if self.label in opinfo.COMMUTATIVE:
-            for child in self.children:
-                if child not in other.children:
-                    return False
-                other.children.remove(child)
-            return True
+            return set(self.children) == set(other.children)
         return self.children == other.children
 
 
@@ -79,9 +93,9 @@ def expression(
     node = build(state, "", node)  # Flush final conversions
     if post_to_pre:
         if node.label == "postinc":
-            node.label = "preinc"
+            node = node.copy(label="preinc")
         elif node.label == "postdec":
-            node.label = "predec"
+            node = node.copy(label="predec")
     return node
 
 
@@ -91,6 +105,7 @@ def conexpr(state: ParseState, *, seecommas: bool = True) -> int:
     if node.label != "con":
         state.error("expected constant expression")
         return 1  # Good default for arrays
+    assert isinstance(node.value, int)
     return node.value
 
 
@@ -126,9 +141,9 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
             assert left and right
             if right.label != "colon":
                 state.error("bad conditional operator")
-            return Node(label, right.typestr, children)
+            return Node(label, right.typestr, tuple(children))
         case "comma" | "logand" | "logor":
-            return Node(label, typestr, children)
+            return Node(label, typestr, tuple(children))
         case "call" | "ucall":
             assert left is not None
             typestr = left.typestr
@@ -136,7 +151,7 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
                 state.error("call of non-function")
             else:
                 typestr = left.typestr.pop()
-            return Node(label, typestr, children)
+            return Node(label, typestr, tuple(children))
         case "deref":
             assert left is not None
             if left.label == "addr":
@@ -144,17 +159,16 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
                 return left[0]
             if not left.typestr.pointer:
                 state.error("deref of non-pointer")
-            return Node(label, left.typestr.pop(), children)
+            return Node(label, left.typestr.pop(), tuple(children))
         case "addr":
             assert left is not None
             if left.label == "deref":
                 # pylint:disable=unsubscriptable-object
-                node = left[0].copy()
-                node.typestr = TypeString(Type.POINT, *node.typestr)
+                node = left[0].copy(typestr=TypeString(Type.POINT, *left[0].typestr))
                 return node
             if left.label not in opinfo.ISLVAL:
                 state.error("expected an lval")
-            return Node(label, TypeString(Type.POINT, *left.typestr), [left])
+            return Node(label, TypeString(Type.POINT, *left.typestr), (left,))
         case _:
             pass
     if label in opinfo.NEEDLVAL:
@@ -169,14 +183,14 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
             typestr = TypeString(Type.INT)
         else:
             typestr = left.typestr
-        return fold(Node(label, typestr, children))
+        return fold(Node(label, typestr, tuple(children)))
 
     assert left and right
 
     if Type.STRUCT in (left.typestr[0].label, right.typestr[0].label):
         state.error("illegal structure operation")
-        left.typestr = TypeString(Type.INT)
-        right.typestr = TypeString(Type.INT)
+        left = left.copy(typestr=TypeString(Type.INT))
+        right = right.copy(typestr=TypeString(Type.INT))
 
     conversion: Type | None = stdconv(left, right)
 
@@ -189,7 +203,7 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
             right = build(state, "toint", right)
         elif left.typestr.pointer and label != "assign":
             right = build(state, "mult", right, con(left.typestr.sizenext()))
-        return Node(label, right.typestr, [left, right])
+        return Node(label, right.typestr, (left, right))
     if label == "colon" and left.typestr.pointer and left.typestr == right.typestr:
         conversion = None
     elif label in opinfo.CMP:
@@ -212,17 +226,17 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
                     for node in (left, right)
                 )
                 size = max(sizeleft, sizeright)
-                subbed = fold(Node("sub", TypeString(Type.INT), [left, right]))
+                subbed = fold(Node("sub", TypeString(Type.INT), (left, right)))
                 if size == 1:
                     return subbed
                 return fold(
                     Node(
                         "div",
                         TypeString(Type.INT),
-                        [
+                        (
                             subbed,
                             con(size),
-                        ],
+                        ),
                     )
                 )
             if left.typestr.pointer:
@@ -245,7 +259,7 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
             raise ValueError(conversion)
     if label in opinfo.ISINT:
         typestr = TypeString(Type.INT)
-    return fold(Node(label, typestr, [left, right]))
+    return fold(Node(label, typestr, (left, right)))
 
 
 def stdconv(
@@ -267,9 +281,12 @@ def fold(node: Node) -> Node:
     """Try to constant fold a node, returning the folded version if so, else
     the original node.
     """
-    if any((node.label != "con" for node in node.children)):
-        return node
-    cons = [child.value for child in node.children]
+    cons: list[int] = []
+    for child in node.children:
+        if child.label != "con":
+            return node
+        assert isinstance(child.value, int)
+        cons.append(child.value)
     match node.label:
         case "add":
             result = con(sum(cons))
@@ -307,14 +324,14 @@ def fixarray(node: Node) -> Node:
     'addr' node to it of type pointer to its subtype.
     """
     if node.label != "addr" and node.typestr[0].label == Type.ARRAY:
-        node = Node("addr", TypeString(Type.POINT, *node.typestr.pop()), [node])
+        node = Node("addr", TypeString(Type.POINT, *node.typestr.pop()), (node,))
     return node
 
 
 def fixfunc(node: Node) -> Node:
     """Alter a reference to a function to a pointer to it."""
     if node.label not in opinfo.CALL and node.typestr[0].label == Type.FUNC:
-        node = Node("addr", TypeString(Type.POINT, *node.typestr), [node])
+        node = Node("addr", TypeString(Type.POINT, *node.typestr), (node,))
     return node
 
 
@@ -363,7 +380,7 @@ def domember(state: ParseState, node: Node, name: str, operator: str) -> Node:
             typestr = symbol.typestr
     if operator == "." and node.label not in opinfo.ISLVAL:
         state.error("missing required lval")
-    return Node("dot" if operator == "." else "arrow", typestr, [node, con(offset)])
+    return Node("dot" if operator == "." else "arrow", typestr, (node, con(offset)))
 
 
 def con(i: int) -> Node:
