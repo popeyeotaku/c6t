@@ -142,7 +142,7 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
             if right.label != "colon":
                 state.error("bad conditional operator")
             return Node(label, right.typestr, tuple(children))
-        case "comma" | "logand" | "logor":
+        case "comma" | "arg" | "logand" | "logor":
             return Node(label, typestr, tuple(children))
         case "call" | "ucall":
             assert left is not None
@@ -437,8 +437,13 @@ def expr1(state: ParseState) -> Node:
                 if state.match(")"):
                     node = build(state, "ucall", node)
                 else:
-                    args = build(state, "", expr15(state))
-                    state.need(")")
+                    args: Node = Node("nop", TypeString(Type.INT))
+                    while not state.match(")"):
+                        state.earlyeof()
+                        args = build(state, "arg", expr14(state), args)
+                        if not state.peekmatch(")"):
+                            state.need(",")
+                    args = build(state, "", args)
                     node = build(state, "call", node, args)
             case "." | "->":
                 name = state.need("name")

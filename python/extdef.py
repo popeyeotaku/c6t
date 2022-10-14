@@ -16,7 +16,7 @@ import expr
 import statement
 from c6tstate import MAXREGS, ParseState
 from expr import conexpr
-from symtab import Storage, Symbol, SymType
+from symtab import Storage, Symbol, SymType, SymTypeTuple
 from type6 import Type, TypeElem, TypeString
 
 START_OFFSET = 10  # Starting offset of parameters from the frame pointer
@@ -194,7 +194,7 @@ def dataexpr(state: ParseState) -> tuple[str | None, int | float]:
         return name, -con
     if node.label == "addr" and node[0].label == "dot":
         assert node[0][0].label == "name"
-        assert isinstance(node[0][0].value, SymType)
+        assert isinstance(node[0][0].value, SymTypeTuple)
         assert isinstance(node[0][0].value.offset, str)
         assert node[0][1].label == "con"
         assert isinstance(node[0][1].value, int)
@@ -217,7 +217,7 @@ def dataname(node: expr.Node) -> str | None:
     (addr -> name node). If so, return the node name. Else, return None.
     """
     if node.label == "addr" and node[0].label == "name":
-        assert isinstance(node[0].value, SymType)
+        assert isinstance(node[0].value, SymTypeTuple)
         assert isinstance(node[0].value.offset, str)
         return node[0].value.offset
     return None

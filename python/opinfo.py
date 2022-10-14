@@ -20,6 +20,8 @@ UNARY = (
     'compl',
 )
 
+COMMAS = {'comma', 'arg'}
+
 COMMUTATIVE = {"add", "mult", "and", "or", "eor"}
 
 NEEDLVAL = {*ASSIGNS, "postinc", "preinc", "postdec", "predec", "dot"}
@@ -38,8 +40,8 @@ SUPPORTS_FLOAT = {
     "equ",
     "nequ",
     "toint",
+    'assign',
 }
-SUPPORTS_FLOAT.update(ASSIGNS)
 
 LESSGREAT = {"less", "great", "lequ", "gequ"}
 
