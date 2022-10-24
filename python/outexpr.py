@@ -7,7 +7,7 @@ import opinfo
 import util
 from c6tstate import ParseState
 from expr import Node
-from symtab import Storage, Symbol, SymType
+from symtab import Storage, FrozenSym
 from type6 import Type, TypeString
 
 TypeChar = Literal["", "c", "f", "d"]
@@ -44,6 +44,8 @@ OPCODES: dict[str, str] = {
     "deref": "",
     "toint": "toint",
     "toflt": "toflt",
+    "arg": "arg",
+    'nop': 'nop',
 }
 OPCODES.update({assign: assign for assign in lexer.ASSIGNS.values()})
 
@@ -73,7 +75,10 @@ def asmexpr(state: ParseState, node: Node) -> None:
     if opcode not in opinfo.NOFLTOP and any(
         (node.typestr.floating) for node in [node] + list(node.children)
     ):
-        opcode = "f" + opcode
+        if (opcode == 'comma' and node[0].typestr.floating) or opcode == 'arg':
+            pass
+        else:
+            opcode = "f" + opcode
     state.asm(opcode)
 
 
@@ -127,6 +132,9 @@ def special(state: ParseState, node: Node) -> bool:
         state.asm(opcode)
         return True
     match node.label:
+        case 'nop':
+            state.asm('null')
+            return True
         case "addr":
             asmexpr(state, node[0])
         case "cond":
@@ -143,8 +151,8 @@ def special(state: ParseState, node: Node) -> bool:
             state.goseg(oldseg)
             state.asm("name", f"L{static}")
         case "name":
-            assert isinstance(node.value, SymType)
-            symbol: SymType = node.value
+            assert isinstance(node.value, FrozenSym)
+            symbol: FrozenSym = node.value
             match symbol.storage:
                 case Storage.AUTO:
                     assert isinstance(symbol.offset, int)

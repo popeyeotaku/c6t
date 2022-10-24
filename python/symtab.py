@@ -46,4 +46,5 @@ class FrozenSym:
         return FrozenSym(sym.storage, sym.offset, sym.typestr, sym.local, sym.undef)
 
 
+SymTypeTuple = (Symbol, FrozenSym)
 SymType = Symbol | FrozenSym

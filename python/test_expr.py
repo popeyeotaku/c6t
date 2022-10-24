@@ -100,12 +100,14 @@ class TestExpr(unittest.TestCase):
             "L1:.db 104,101,108,108,111,32,119,111,114,108,100,10,0",
             ".text",
             "name L1",
+            "arg",
             "call",
             "name _puts",
             ".string",
             "L2:.db 1,34,2,34,3,0",
             ".text",
             "name L2",
+            "arg",
             "call",
             "comma",
         ]
@@ -151,9 +153,14 @@ class TestExpr(unittest.TestCase):
             "call",
             namenode,
             Node(
-                "addr",
-                TypeString(Type.POINT, Type.FUNC, Type.INT),
-                (namenode,),
+                "arg",
+                TypeString(Type.INT),
+                (
+                    Node(
+                        "addr", TypeString(Type.POINT, Type.FUNC, Type.INT), (namenode,)
+                    ),
+                    Node("nop", TypeString(Type.INT)),
+                ),
             ),
         )
         self.assertEqual(node, other)
