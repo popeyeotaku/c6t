@@ -22,6 +22,8 @@ NODES: dict[str, int | Type[Any] | None] = {
     "assign": 2,
     "postinc": 2,
     "cload": 1,
+    "arg": 2,
+    "null": None,
 }
 COMMANDS: dict[str, Type[Any] | None] = {
     ".export": str,
@@ -51,6 +53,9 @@ class Node:
     label: str
     children: list[Node] = field(default_factory=list)
     value: Any = None
+
+    def __getitem__(self, index: int) -> Node:
+        return self.children[index]
 
 
 @dataclass
@@ -93,7 +98,7 @@ class BackendABC(ABC, Generic[T]):
         except ValueError:
             return self.text
 
-    def seek(self, i: int, relative: bool = True) -> None:
+    def seek(self, i: int, *, relative: bool = True) -> None:
         """Reposition the text index."""
         if relative:
             i += self.index
@@ -186,7 +191,7 @@ class BackendABC(ABC, Generic[T]):
             if args:
                 raise ValueError(f"no args supported for command {label}")
         else:
-            if any((not issubclass(arg, argtype) for arg in args)):
+            if any((not isinstance(arg, argtype) for arg in args)):
                 raise TypeError(f"arg of bad type {repr(line)}")
         return Command(label, args)
 
@@ -210,12 +215,13 @@ class BackendABC(ABC, Generic[T]):
             if value is not None:
                 raise ValueError(f"no value for node {label}")
         else:
-            if not issubclass(value, argtype):
+            if not isinstance(value, argtype):
                 raise TypeError(f"value of bad type {repr(line)}")
         return Node(label, children, value)
 
     def process_line(self):
         """Process a single input line."""
+        self._skipws(include_newlines=True)
         atom = self.atom()
         if isinstance(atom, Label):
             self.deflab(atom.name)
@@ -223,6 +229,9 @@ class BackendABC(ABC, Generic[T]):
             self.nodestk.append(atom)
         elif isinstance(atom, Command):
             self.docmd(atom.label, *atom.args)
+        if not isinstance(atom, Label):
+            if not self.matchlit("\n"):
+                raise ValueError("missing expected newline")
 
     @abstractmethod
     def deflab(self, label: str) -> None:
@@ -230,13 +239,14 @@ class BackendABC(ABC, Generic[T]):
         raise NotImplementedError
 
     @abstractmethod
-    def docmd(self, cmd:str, *args:Any) -> None:
+    def docmd(self, cmd: str, *args: Any) -> None:
         """Process a single command."""
         raise NotImplementedError
 
     def codegen(self) -> T:
         """Handle all codegen. Raises ValueError if any errors."""
         errors = 0
+        self.seek(0, relative=False)
         while self.text:
             try:
                 self.process_line()
@@ -246,6 +256,9 @@ class BackendABC(ABC, Generic[T]):
             except TypeError as exc:
                 print("ERROR:", exc)
                 errors += 1
+        if self.nodestk:
+            print("ERROR:", f"{len(self.nodestk)} nodes left on node stack")
+            errors += 1
         if errors:
             raise ValueError(f"codegen errors: {errors}")
         return self.wrapup()
