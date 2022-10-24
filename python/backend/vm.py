@@ -29,6 +29,7 @@ class BackendVM(BackendABC[str]):
         match cmd:
             case "eval":
                 self.outnode(self.nodestk.pop())
+                self.asm("drop")
             case "brz":
                 self.outnode(Node("brz", [self.nodestk.pop()], value=args[0]))
             case _:
@@ -52,7 +53,22 @@ class BackendVM(BackendABC[str]):
 
     def outnode(self, node: Node) -> None:
         """Assemble a given node."""
+        if (
+            node.label in ("load", "cload", "assign", "cassign")
+            and node[0].label == "reg"
+        ):
+            match node.label:
+                case "load" | "cload":
+                    self.asm("grabreg", str(node[0].value))
+                case "assign" | "cassign":
+                    self.outnode(node[1])
+                    self.asm("putreg", str(node[0].value))
+                case _:
+                    raise ValueError("bad node with reg child", node.label)
+            return
         match node.label:
+            case "reg":
+                raise ValueError("illegal context for reg")
             case "null":
                 pass
             case "arg":
@@ -71,8 +87,11 @@ class BackendVM(BackendABC[str]):
             case "preinc" | "predec" | "postinc" | "postdec":
                 assert node[1].label == "con"
                 assert isinstance(node[1].value, int)
-                self.outnode(node[0])
-                self.asm(node.label, str(node[1].value))
+                if node[0].label == 'reg':
+                    self.asm(f'reg{node.label}', str(node[0].value), str(node[1].value))
+                else:
+                    self.outnode(node[0])
+                    self.asm(node.label, str(node[1].value))
             case _:
                 for child in node.children:
                     self.outnode(child)
