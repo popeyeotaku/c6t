@@ -133,6 +133,7 @@ def special(state: ParseState, node: Node) -> bool:
         return True
     match node.label:
         case 'nop':
+            state.asm('null')
             return True
         case "addr":
             asmexpr(state, node[0])
