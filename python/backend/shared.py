@@ -61,8 +61,8 @@ class Command:
     args: list[Any]
 
 
-class SharedBackend(ABC, Generic[T]):
-    """Superclass for C6T backends."""
+class BackendABC(ABC, Generic[T]):
+    """Abstract base class for C6T backends."""
 
     def __init__(self, source: str) -> None:
         super().__init__()
@@ -222,7 +222,7 @@ class SharedBackend(ABC, Generic[T]):
         elif isinstance(atom, Node):
             self.nodestk.append(atom)
         elif isinstance(atom, Command):
-            self.docmd(atom)
+            self.docmd(atom.label, *atom.args)
 
     @abstractmethod
     def deflab(self, label: str) -> None:
@@ -230,7 +230,7 @@ class SharedBackend(ABC, Generic[T]):
         raise NotImplementedError
 
     @abstractmethod
-    def docmd(self, command: Command) -> None:
+    def docmd(self, cmd:str, *args:Any) -> None:
         """Process a single command."""
         raise NotImplementedError
 
