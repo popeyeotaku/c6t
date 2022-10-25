@@ -1,5 +1,6 @@
 """Test C6T VM"""
 
+import time
 import unittest
 from io import StringIO
 from pathlib import Path
@@ -43,3 +44,15 @@ class VMTests(unittest.TestCase):
         prgvm = vm.vm.VM(prg)
         prgvm.exec(*args, stdout=argio)
         self.assertEqual(argio.getvalue(), "foobar\n")
+
+    def test_irq_clock(self) -> None:
+        """Test clock IRQ execution."""
+        path = Path("python") / Path("vm") / Path("test_irq.s")
+        prg = vm.vm_asm.Assembler(path.read_text('utf8')).assemble()
+        prgvm = vm.vm.VM(prg)
+        time_start = time.monotonic()
+        prgvm.run_irq(60)
+        time_end = time.monotonic()
+        secs = prgvm.fromword(prgvm.grab(0, 2))
+        print(secs)
+        self.assertAlmostEqual(secs, time_end - time_start)

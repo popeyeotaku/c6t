@@ -51,6 +51,9 @@ class Expr:
                 ibytes = bytes([ibytes[0], 0])
         return ibytes[:2]
 
+    def __int__(self) -> int:
+        return int.from_bytes(self.tobytes({}), "little", signed=False)
+
 
 @dataclass
 class Segment:
@@ -206,9 +209,12 @@ class Assembler:
                 args = self.grabargs()
                 if atom in SEGNAMES:
                     self.segname = atom
+                    continue
                 match atom:
                     case ".export":
                         pass
+                    case ".ds":
+                        self.curseg.curloc += sum((int(arg) for arg in args))
                     case ".dc":
                         self.curseg.curloc += len(args)
                     case ".dw":
@@ -243,9 +249,14 @@ class Assembler:
                     raise ValueError("phase error")
             elif isinstance(atom, str):
                 args = self.grabargs()
+                if atom in SEGNAMES:
+                    self.segname = atom
+                    continue
                 match atom:
                     case ".export":
                         pass
+                    case ".ds":
+                        self.curseg.asm += bytes(sum((int(arg) for arg in args)))
                     case ".dc":
                         for arg in args:
                             self.curseg.asm += bytes([arg.tobytes(self.symtab)[0]])
@@ -266,7 +277,7 @@ class Assembler:
         self.pass2()
         asmbytes: bytes = bytes()
         for segname in SEGNAMES:
-            if segname == '.bss':
+            if segname == ".bss":
                 continue
             asmbytes += self.segments[segname].asm
         return asmbytes

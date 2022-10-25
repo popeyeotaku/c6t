@@ -1,8 +1,14 @@
 """C6T VM"""
 
 import math
+import operator
 import sys
+import time
+from collections import deque
+from io import SEEK_SET, StringIO
 from typing import Any, Callable, TextIO
+
+import unicurses
 
 OPNAMES: tuple[str, ...] = (
     "auto",
@@ -11,6 +17,7 @@ OPNAMES: tuple[str, ...] = (
     "preinc",
     "load",
     "name",
+    "con",
     "call",
     "dropargs",
     "jmp",
@@ -27,6 +34,20 @@ OPNAMES: tuple[str, ...] = (
     "regpredec",
     "regpostinc",
     "regpostdec",
+    "chrin",
+    "irqret",
+    "equ",
+    "nequ",
+    "great",
+    "less",
+    "gequ",
+    "lequ",
+    "ugreat",
+    "uless",
+    "ugequ",
+    "ulequ",
+    "noirq",
+    "yesirq",
 )
 OPCODES: dict[str, int] = {opname: opcode for opcode, opname in enumerate(OPNAMES)}
 OPNUMS: dict[int, str] = {opnum: opname for opname, opnum in OPCODES.items()}
@@ -38,6 +59,7 @@ OPARGS: tuple[str, ...] = (
     "auto",
     "preinc",
     "name",
+    "con",
     "dropargs",
     "jmp",
     "postinc",
@@ -62,6 +84,13 @@ REGS: tuple[str, ...] = (
     "fp",
 )
 
+IRQ_START = 1
+IRQS: tuple[str, ...] = (
+    "reset",
+    "save",
+    "clock",
+)
+
 
 class VM:
     """C6T VM."""
@@ -71,6 +100,9 @@ class VM:
         self._prg = program
         self.regs = {reg: 0 for reg in REGS}
         self.stdout = sys.stdout
+        self.inbuf: deque[str] = deque()
+        self.inirq: bool = False
+        self.blockirq: bool = False
 
     @property
     def prg(self) -> bytes:
@@ -110,6 +142,72 @@ class VM:
         self.regs["sp"] += 2
         return self.fromword(word, signed=signed)
 
+    def run_irq(self, clocks_per_sec: int) -> None:
+        """Run with simulated interrupts. Uses unicurses."""
+        # pylint:disable=unused-variable
+        self.copy(0, self.prg)
+
+        stdscr = unicurses.initscr()
+        unicurses.clear()
+        unicurses.noecho()
+        unicurses.cbreak()
+        unicurses.clear()
+        unicurses.nodelay(stdscr, 1)
+
+        self.stdout = StringIO()
+        self.inbuf = deque()
+        outpos = self.stdout.tell()
+
+        hertz = 1 / clocks_per_sec
+        start_time = time.monotonic()
+        irqdone = 0
+        irqleft = 0
+
+        for reg in self.regs:
+            self.regs[reg] = 0
+
+        nextirq = ""
+
+        while self.regs["pc"] != 0xFFFF:
+            self.step()
+
+            if nextirq:
+                self.irq(nextirq)
+                nextirq = ""
+
+            while outpos < self.stdout.tell():
+                self.stdout.seek(outpos, SEEK_SET)
+                for char in self.stdout.read():
+                    unicurses.addch(char)
+                outpos = self.stdout.tell()
+
+            while (ichar := unicurses.getch()) != unicurses.ERR:
+                assert isinstance(ichar, int)
+                self.inbuf.append(chr(ichar & 0o177))
+
+            irqleft = math.floor((time.monotonic() - start_time) / hertz)
+
+            if irqleft > irqdone and not (self.inirq or self.blockirq):
+                irqdone += 1
+                nextirq = "clock"
+
+        unicurses.endwin()
+
+    def irq(self, name: str) -> None:
+        """Process an IRQ."""
+        irqoffset = IRQ_START + IRQS.index(name) * 2
+        irqaddr = self.fromword(self.grab(irqoffset, 2))
+        # IRQs save all registers starting in the address in IRQsave.
+        irqsave = self.fromword(self.grab(IRQ_START + IRQS.index("save") * 2, 2))
+        for i, reg in enumerate(self.regs.values()):
+            self.copy(irqsave + i * 2, self.toword(reg))
+        self.regs["pc"] = irqaddr
+        self.inirq = True
+
+    def peekop(self) -> str:
+        """Peek the current opcode."""
+        return OPNUMS[self.fromword(self.grab(self.regs["pc"], 1))]
+
     def exec(
         self,
         *args: str,
@@ -144,8 +242,8 @@ class VM:
         self.push(self.regs["fp"])  # Duplicate frame pointer
         for _ in range(3):
             self.push(0)  # Old reg contents
-
         self.regs["fp"] = self.regs["sp"]
+
         self.regs["pc"] = start_pc
         while self.regs["pc"] != 0xFFFF:
             self.step()
@@ -343,6 +441,7 @@ def do_chrout(c6tvm: VM, opcode: str, args: list[int]) -> None:
 
 
 @addop("regpostinc", "regpostdec", "regpredec", "regpreinc")
+# pylint:disable=unused-argument
 def do_regincdec(c6tvm: VM, opcode: str, args: list[int]) -> None:
     """Postinc/dec a register."""
     regnum = args[0] % 3
@@ -364,3 +463,75 @@ def do_regincdec(c6tvm: VM, opcode: str, args: list[int]) -> None:
             raise ValueError(opcode)
     c6tvm.regs[regname] = newval
     c6tvm.push(value)
+
+
+@addop("chrin")
+# pylint:disable=unused-argument
+def do_chrin(c6tvm: VM, opcode: str, args: list[int]) -> None:
+    """If there's any characters in the input buffer, push them. ELse, push
+    -1.
+    """
+    if c6tvm.inbuf:
+        char = c6tvm.inbuf.popleft()
+        c6tvm.push(ord(char) & 0o177)
+    else:
+        c6tvm.push(-1)
+
+
+@addop("irqret")
+# pylint:disable=unused-argument
+def do_irqret(c6tvm: VM, opcode: str, args: list[int]) -> None:
+    """Return from an IRQ."""
+    saveoffset = IRQ_START + IRQS.index("save") * 2
+    saveaddr = c6tvm.fromword(c6tvm.grab(saveoffset, 2))
+    for i, reg in enumerate(c6tvm.regs):
+        c6tvm.regs[reg] = c6tvm.fromword(c6tvm.grab(saveaddr + i * 2, 2))
+    c6tvm.inirq = False
+
+
+@addop(
+    "equ", "gequ", "ugequ", "lequ", "ulequ", "great", "ugreat", "less", "uless", "nequ"
+)
+# pylint:disable=unused-argument
+def do_cmp(c6tvm: VM, opcode: str, args: list[int]) -> None:
+    """Push flag for if two popped values are equal."""
+    right = c6tvm.pop()
+    left = c6tvm.pop()
+    unsigned = opcode[0] == "u"
+    if not unsigned:
+        left = c6tvm.fromword(c6tvm.toword(left), signed=True)
+        right = c6tvm.fromword(c6tvm.toword(right), signed=True)
+    opfunc: Callable[[int, int], bool]
+    match opcode:
+        case "equ":
+            opfunc = operator.eq
+        case "nequ":
+            opfunc = operator.ne
+        case "less" | "uless":
+            opfunc = operator.lt
+        case "lequ" | "ulequ":
+            opfunc = operator.le
+        case "great" | "ugreat":
+            opfunc = operator.gt
+        case "gequ" | "ugequ":
+            opfunc = operator.ge
+        case _:
+            raise ValueError(opcode)
+    if opfunc(left, right):
+        c6tvm.push(1)
+    else:
+        c6tvm.push(0)
+
+
+@addop("noirq", "yesirq")
+# pylint:disable=unused-argument
+def do_flgirq(c6tvm: VM, opcode: str, args: list[int]) -> None:
+    """Change IRQ flag."""
+    match opcode:
+        case "yesirq":
+            flag = True
+        case "noirq":
+            flag = False
+        case _:
+            raise ValueError(opcode)
+    c6tvm.blockirq = flag
