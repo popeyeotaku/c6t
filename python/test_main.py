@@ -10,5 +10,5 @@ class TestMain(unittest.TestCase):
     """Test the command line routine for C6T."""
 
     def testmain(self):
-        main.main([str(pathlib.Path(pathlib.PurePosixPath("python/test_main.c")))])
-        self.assertTrue(True)
+        """Make sure main runs correctly."""
+        main.main(['python/test_main.c', '-X', 'python/test_main_append.s'])

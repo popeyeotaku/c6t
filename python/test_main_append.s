@@ -1,0 +1,2 @@
+_putchar:
+chrout
