@@ -10,23 +10,40 @@ import preproc
 import vm.vm_asm
 from frontend import compile_c6t
 
+BACKENDS = {"vm": (backend.vm.BackendVM, vm.vm_asm.Assembler)}
+
 parser = argparse.ArgumentParser(description="Frontend for the C6T compiler")
-parser.add_argument("files", type=str, metavar="S", help="the source files", nargs="+")
+parser.add_argument(
+    "files", type=str, metavar="file", help="the source files", nargs="+"
+)
 parser.add_argument(
     "-I",
     dest="preproc",
     help="only output a preprocessed file",
+    action="store_true",
+    default=False,
 )
-parser.add_argument("-S", dest="outasm", help="only output an assembly file")
 parser.add_argument(
-    "-b", dest="backend", type=str, default="vm", help="choice of backend"
+    "-S",
+    dest="outasm",
+    help="only output an assembly file",
+    action="store_true",
+    default=False,
 )
-parser.add_argument("-R", dest="outir", help="only output IR")
+parser.add_argument(
+    "-b",
+    dest="backend",
+    type=str,
+    choices=list(BACKENDS),
+    default="vm",
+    help="choice of backend",
+)
+parser.add_argument(
+    "-R", dest="outir", help="only output IR", action="store_true", default=False
+)
 parser.add_argument(
     "-X", dest="append", type=str, default=None, help="filename to append onto asm"
 )
-
-BACKENDS = {"vm": (backend.vm.BackendVM, vm.vm_asm.Assembler)}
 
 
 def main(argv: list[str]):

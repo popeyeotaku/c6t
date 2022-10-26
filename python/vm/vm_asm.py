@@ -73,11 +73,12 @@ class Assembler:
     """C6T VM assembler."""
 
     def __init__(self, source: str):
-        self.source = source
+        self.source = source + "\n"
         self.i = 0
         self.segments: dict[str, Segment] = {name: Segment() for name in SEGNAMES}
         self.segname = ".text"
         self.symtab: dict[str, int] = {}
+        self.commons: dict[str, int] = {}
 
     @property
     def curseg(self) -> Segment:
@@ -88,6 +89,11 @@ class Assembler:
     def text(self) -> str:
         """The source text from the current position."""
         return self.source[self.i :]
+
+    @property
+    def linenum(self) -> int:
+        """The current assembly line number."""
+        return self.source[: self.i].count("\n") + 1
 
     def skipws(self, *, include_newlines: bool = False) -> None:
         """Skip leading whitespace in self.text."""
@@ -196,6 +202,7 @@ class Assembler:
 
     def pass1(self) -> None:
         """Compute the symbol table."""
+        commons: dict[str, int] = {}
         for segname in self.segments:
             self.segments[segname] = Segment()
         self.segname = ".text"
@@ -211,6 +218,12 @@ class Assembler:
                     self.segname = atom
                     continue
                 match atom:
+                    case ".common":
+                        name, size = args[0].name, args[1].con
+                        assert isinstance(name, str)
+                        if name not in commons:
+                            commons[name] = 0
+                        commons[name] = max(commons[name], size)
                     case ".export":
                         pass
                     case ".ds":
@@ -232,6 +245,14 @@ class Assembler:
             seg.end = seg.curloc + start
             self.symtab.update({name: i + start for name, i in seg.symtab.items()})
             start = seg.end
+
+        bss_size = self.segments[".bss"].end
+        for common, size in commons.items():
+            if common not in self.symtab:
+                self.symtab[common] = bss_size
+                bss_size += size
+        self.segments[".bss"].end = bss_size
+
         self.symtab["_etext"] = self.segments[".text"].end
         self.symtab["_edata"] = self.segments[".string"].end
         self.symtab["_end"] = self.segments[".bss"].end
@@ -253,11 +274,11 @@ class Assembler:
                     self.segname = atom
                     continue
                 match atom:
-                    case ".export":
+                    case ".export" | ".common":
                         pass
                     case ".ds":
                         self.curseg.asm += bytes(sum((int(arg) for arg in args)))
-                    case ".dc":
+                    case ".db":
                         for arg in args:
                             self.curseg.asm += bytes([arg.tobytes(self.symtab)[0]])
                     case ".dw":

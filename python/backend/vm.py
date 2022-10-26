@@ -4,6 +4,8 @@ from typing import Any
 
 from .shared import BackendABC, Node
 
+ASNOPS = ("asnmult", "asnadd", "asnor", "asnrshift", "asnsub", "asnand")
+
 
 class BackendVM(BackendABC[str]):
     """C6T VM backend codegen."""
@@ -11,6 +13,12 @@ class BackendVM(BackendABC[str]):
     def __init__(self, source: str) -> None:
         super().__init__(source)
         self._asm: str = ""
+        self.curlab = 0
+
+    def nextlab(self) -> str:
+        """Return the next temporary label."""
+        self.curlab += 1
+        return f"LL{self.curlab}"
 
     def wrapup(self) -> str:
         return self._asm
@@ -25,8 +33,30 @@ class BackendVM(BackendABC[str]):
     def deflab(self, label: str) -> None:
         self._asm += f"{label}:"
 
+    def doswitch(
+        self, tablelen: Node, tablelab: Node, deflab: Node, expr: Node
+    ) -> None:
+        """Handle a switch statement."""
+        self.outnode(deflab)
+        self.outnode(tablelab)
+        self.outnode(tablelen)
+        self.outnode(expr)
+        self.asm("jmp", "doswitch")
+
     def docmd(self, cmd: str, *args: Any) -> None:
         match cmd:
+            case "goto":
+                self.outnode(self.nodestk.pop())
+                self.asm("stkjmp")
+            case "doswitch":
+                switchlen = self.nodestk.pop()
+                switchdef = self.nodestk.pop()
+                switchtable = self.nodestk.pop()
+                switchexpr = self.nodestk.pop()
+                self.doswitch(switchlen, switchdef, switchtable, switchexpr)
+            case "ret":
+                self.outnode(self.nodestk.pop())
+                self.asm("ret")
             case "eval":
                 self.outnode(self.nodestk.pop())
                 self.asm("drop")
@@ -53,6 +83,28 @@ class BackendVM(BackendABC[str]):
 
     def outnode(self, node: Node) -> None:
         """Assemble a given node."""
+        if node.label in ASNOPS or node.label in (("c" + asnop for asnop in ASNOPS)):
+            label = node.label
+            if label[0] == "c":
+                label = label[1:]
+                mode = "c"
+            else:
+                mode = ""
+            operator = label.removeprefix("asn")
+            addr = node[0]
+            mod = node[1]
+            if addr.label == "reg":
+                nodeasn = Node(
+                    "assign", [addr, Node(operator, [Node("load", [addr]), mod])]
+                )
+                self.outnode(nodeasn)
+            else:
+                self.outnode(addr)
+                self.asm("dup")
+                self.outnode(mod)
+                self.asm(operator)
+                self.asm(f"{mode}assign")
+            return
         if (
             node.label in ("load", "cload", "assign", "cassign")
             and node[0].label == "reg"
@@ -67,6 +119,17 @@ class BackendVM(BackendABC[str]):
                     raise ValueError("bad node with reg child", node.label)
             return
         match node.label:
+            case "logand" | "logor":
+                branch = "brz" if node.label == "logand" else "bnz"
+                lab = self.nextlab()
+                self.outnode(node[0])
+                self.asm("log")
+                self.asm("dup")
+                self.asm(branch, lab)
+                self.asm("drop")
+                self.outnode(node[1])
+                self.asm("log")
+                self.deflab(lab)
             case "reg":
                 raise ValueError("illegal context for reg")
             case "null":
@@ -87,8 +150,8 @@ class BackendVM(BackendABC[str]):
             case "preinc" | "predec" | "postinc" | "postdec":
                 assert node[1].label == "con"
                 assert isinstance(node[1].value, int)
-                if node[0].label == 'reg':
-                    self.asm(f'reg{node.label}', str(node[0].value), str(node[1].value))
+                if node[0].label == "reg":
+                    self.asm(f"reg{node.label}", str(node[0].value), str(node[1].value))
                 else:
                     self.outnode(node[0])
                     self.asm(node.label, str(node[1].value))

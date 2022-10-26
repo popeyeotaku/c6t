@@ -1,14 +1,18 @@
 """C6T VM"""
 
+import itertools
 import math
 import operator
+from pathlib import Path, PurePosixPath
 import sys
 import time
 from collections import deque
-from io import SEEK_SET, StringIO
+from io import SEEK_SET, BytesIO, StringIO
 from typing import Any, Callable, TextIO
 
 import unicurses
+
+MAX_FILES = 15
 
 OPNAMES: tuple[str, ...] = (
     "auto",
@@ -23,6 +27,7 @@ OPNAMES: tuple[str, ...] = (
     "jmp",
     "retnull",
     "assign",
+    "cassign",
     "postinc",
     "cload",
     "useregs",
@@ -48,6 +53,21 @@ OPNAMES: tuple[str, ...] = (
     "ulequ",
     "noirq",
     "yesirq",
+    "log",
+    "lognot",
+    "bnz",
+    "dup",
+    "add",
+    "and",
+    "dropstk",
+    "stkjmp",
+    "sub",
+    "div",
+    "rshift",
+    "lshift",
+    "mult",
+    "or",
+    "open",
 )
 OPCODES: dict[str, int] = {opname: opcode for opcode, opname in enumerate(OPNAMES)}
 OPNUMS: dict[int, str] = {opnum: opname for opname, opnum in OPCODES.items()}
@@ -65,6 +85,7 @@ OPARGS: tuple[str, ...] = (
     "postinc",
     "grabreg",
     "putreg",
+    "dropstk",
 )
 OPMULTARGS: dict[str, int] = {
     "regpreinc": 2,
@@ -103,6 +124,42 @@ class VM:
         self.inbuf: deque[str] = deque()
         self.inirq: bool = False
         self.blockirq: bool = False
+        self.files: list[BytesIO | None] = [None] * MAX_FILES
+
+    def alloc_file(self) -> int:
+        """Return the next unallocated file descriptor, or -1 if none
+        available.
+        """
+        for i, file in enumerate(self.files):
+            if not file:
+                return i
+        return -1
+
+    def grabstr(self, addr: int) -> str:
+        """Grab a null-terminated ASCII string starting at the given address
+        in the VM's memory.
+        """
+        grabbed = bytes()
+        for i in itertools.count(addr):
+            if (i & 0xFFFF) < addr:
+                break  # overflow
+            byte = self.grab(addr, i)
+            if byte[0] == 0:
+                break
+            grabbed += byte
+        return grabbed.decode("ascii")
+
+    def grab_path(self, addr: int) -> Path:
+        """Return a pathlib path from an ASCII string in the VM's memory
+        starting at the given address.
+        """
+        return Path(".") / Path(PurePosixPath(self.grabstr(addr)))
+
+    def pop_path(self) -> Path:
+        """Return a pathlib path from the ASCII string whose address is stored
+        on the bottom of the stack.
+        """
+        return self.grab_path(self.pop())
 
     @property
     def prg(self) -> bytes:
@@ -192,6 +249,14 @@ class VM:
                 nextirq = "clock"
 
         unicurses.endwin()
+        self.closeall()
+
+    def closeall(self) -> None:
+        """Close all open files."""
+        for i, file in enumerate(self.files):
+            if file:
+                file.close()
+                self.files[i] = None
 
     def irq(self, name: str) -> None:
         """Process an IRQ."""
@@ -247,6 +312,7 @@ class VM:
         self.regs["pc"] = start_pc
         while self.regs["pc"] != 0xFFFF:
             self.step()
+        self.closeall()
 
     def grabpc(self, count: int) -> bytes:
         """Grab count bytes starting at the current PC, advancing the PC."""
@@ -535,3 +601,135 @@ def do_flgirq(c6tvm: VM, opcode: str, args: list[int]) -> None:
         case _:
             raise ValueError(opcode)
     c6tvm.blockirq = flag
+
+
+@addop("log", "lognot")
+# pylint:disable=unused-argument
+def do_logop(c6tvm: VM, opcode: str, args: list[int]) -> None:
+    """Pop a value and push 1 or 0 depending on its equality to 0."""
+    match opcode:
+        case "log":
+            iszero = 0
+            notzero = 1
+        case "lognot":
+            iszero = 1
+            notzero = 0
+        case _:
+            raise ValueError(opcode)
+    if c6tvm.pop() == 0:
+        c6tvm.push(notzero)
+    else:
+        c6tvm.push(iszero)
+
+
+@addop("dup")
+# pylint:disable=unused-argument
+def do_dup(c6tvm: VM, opcode: str, args: list[int]) -> None:
+    """Duplicate the value on the bottom of the stack."""
+    c6tvm.push(c6tvm.peek())
+
+
+@addop("add", "and", "sub", "div", "mult", "lshift", "or")
+# pylint:disable=unused-argument
+def do_math(c6tvm: VM, opcode: str, args: list[int]) -> None:
+    """Handle general math operations."""
+    right = c6tvm.pop()
+    left = c6tvm.pop()
+    match opcode:
+        case "or":
+            opfunc = operator.or_
+        case "mult":
+            opfunc = operator.mul
+        case "lshift":
+            opfunc = operator.lshift
+        case "div":
+            opfunc = operator.floordiv
+        case "sub":
+            opfunc = operator.sub
+        case "rshift":
+            left = c6tvm.fromword(c6tvm.toword(left), signed=True)
+            opfunc = operator.rshift
+        case "and":
+            opfunc = operator.and_
+        case "add":
+            opfunc = operator.add
+        case "or":
+            opfunc = operator.or_
+        case _:
+            raise ValueError(opcode)
+    c6tvm.push(opfunc(left, right))
+
+
+@addop("save_state")
+# pylint:disable=unused-argument
+def do_save_state(c6tvm: VM, opcode: str, args: list[int]) -> None:
+    """Save registers into the addr on the stack."""
+    addr = c6tvm.pop()
+    for i, reg in enumerate(c6tvm.regs.values()):
+        c6tvm.copy(addr + i * 2, c6tvm.toword(reg))
+
+
+@addop("restore_state")
+# pylint:disable=unused-argument
+def do_restore_state(c6tvm: VM, opcode: str, args: list[int]) -> None:
+    """Restore registers from addr on the stack."""
+    addr = c6tvm.pop()
+    for i, reg in reversed(list(enumerate(c6tvm.regs.keys()))):
+        c6tvm.regs[reg] = c6tvm.fromword(c6tvm.grab(addr + i * 2, 2))
+
+
+@addop("unlink")
+# pylint:disable=unused-argument
+def do_unlink(c6tvm: VM, opcode: str, args: list[int]) -> None:
+    """Simulate the Unix 6 unlink command."""
+    path = c6tvm.pop_path()
+    path.unlink()
+
+
+@addop("dropstk")
+# pylint:disable=unused-argument
+def do_dropstk(c6tvm: VM, opcode: str, args: list[int]) -> None:
+    """Drop the stack inline arg bytes."""
+    c6tvm.regs["sp"] -= args[0]
+
+
+@addop("stkjmp")
+# pylint:disable=unused-argument
+def do_stkjmp(c6tvm: VM, opcode: str, args: list[int]) -> None:
+    """Jump to the address on the stack."""
+    c6tvm.regs["pc"] = c6tvm.pop()
+
+
+OPEN_MODES: dict[int, str] = {
+    0: "rb",
+    1: "ab",
+    2: "r+b",
+    3: 'wb'
+}
+
+
+@addop("open")
+# pylint:disable=unused-argument
+def do_open(c6tvm: VM, opcode: str, args: list[int]) -> None:
+    """Simulate the Unix6 open command. Has additional mode 3 for creat."""
+    path = c6tvm.pop_path()
+    mode = c6tvm.pop()
+    descriptor = c6tvm.alloc_file()
+    if descriptor == -1:
+        c6tvm.push(descriptor)
+        return
+    if mode not in OPEN_MODES:
+        c6tvm.push(-1)
+        return
+    modestr = OPEN_MODES[mode]
+    if not path.exists and "w" not in mode:
+        c6tvm.push(-1)
+        return
+    try:
+        file = path.open(modestr)
+    # pylint:disable=broad-except
+    except BaseException:
+        c6tvm.push(-1)
+        return
+    assert isinstance(file, BytesIO)
+    c6tvm.files[descriptor] = file

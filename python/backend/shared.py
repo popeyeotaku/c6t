@@ -24,19 +24,62 @@ NODES: dict[str, int | Type[Any] | None] = {
     "cload": 1,
     "arg": 2,
     "null": None,
+    "sub": 2,
+    "logor": 2,
+    "ugequ": 2,
+    "add": 2,
+    "equ": 2,
+    "cassign": 2,
+    "asnadd": 2,
+    "and": 2,
+    "rshift": 2,
+    "nequ": 2,
+    "less": 2,
+    "gequ": 2,
+    "logand": 2,
+    "ucall": 1,
+    "lognot": 1,
+    'ugreat': 2,
+    'mult': 2,
+    'casnor': 2,
+    'ulequ': 2,
+    'div': 2,
+    'uless': 2,
+    'asnand': 2,
+    'or': 2,
+    'asnor': 2,
+    'asnrshift': 2,
+    'lshift': 2,
+    'great': 2,
+    'lequ': 2,
+    'asnmult': 2,
+    'neg': 1,
+    'asnsub': 2,
 }
-COMMANDS: dict[str, Type[Any] | None] = {
+COMMANDS: dict[str, Type[Any] | None | tuple[Type[Any], ...]] = {
     ".export": str,
     "useregs": int,
     "brz": str,
     "eval": None,
     "jmp": str,
     "retnull": None,
+    "ret": None,
+    ".text": None,
+    ".data": None,
+    ".dw": (str, int),
+    '.db': (str, int),
+    ".bss": None,
+    "doswitch": None,
+    ".common": (str, int),
+    'dropstk': int,
+    '.string': None,
+    'goto': None,
 }
 
 RE_NAME = r"[a-zA-Z_.][.a-zA-Z_0-9]*"
 RE_LABEL = r"(" + RE_NAME + r"):"
 RE_CON = r"[0-9]+"
+RE_MATH = r"[.a-zA-Z_0-9+-]+"
 
 
 @dataclass(frozen=True)
@@ -166,6 +209,8 @@ class BackendABC(ABC, Generic[T]):
         if match := self.matchre(RE_CON):
             return int(match[0])
         if match := self.matchre(RE_NAME):
+            return str(match[0])
+        if match := self.matchre(RE_MATH):
             return str(match[0])
         raise ValueError(f"bad arg {repr(self.curline)}")
 
