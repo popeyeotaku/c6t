@@ -140,7 +140,7 @@ class VM:
         self.inirq: bool = False
         self.blockirq: bool = False
         self.files: list[Any | None] = [None] * MAX_FILES
-        self.unlink_queue:set[Path] = set()
+        self.unlink_queue: set[Path] = set()
 
     def alloc_file(self) -> int:
         """Return the next unallocated file descriptor, or -1 if none
@@ -740,6 +740,11 @@ OPEN_MODES: dict[int, str] = {0: "rb", 1: "ab", 2: "r+b", 3: "wb"}
 def do_open(c6tvm: VM, opcode: str, args: list[int]) -> None:
     """Simulate the Unix6 open command. Has additional mode 3 for creat."""
     path = c6tvm.pop_path()
+    if path not in (
+        Path(".", "tmp", "e00001").absolute(),
+        Path(".", "ed", "test", "foo.bar").absolute(),
+    ):
+        raise ValueError(f"bad path {path}")
     mode = c6tvm.pop()
     descriptor = c6tvm.alloc_file()
     if descriptor == -1:
@@ -812,8 +817,8 @@ def do_seek(c6tvm: VM, opcode: str, args: list[int]) -> None:
         return
     if not file.seekable():
         return
-    if whence > max(WHENCES.keys()):
-        whence -= max(WHENCES.keys())
+    if whence >= 3:
+        whence -= 3
         pos *= 512
     try:
         host_whence = WHENCES[whence]
@@ -858,6 +863,7 @@ def do_rw(c6tvm: VM, opcode: str, args: list[int]) -> None:
             c6tvm.push(write_count)
         case _:
             raise ValueError(opcode)
+    file.flush()
 
 
 LDIV_HI = 0
