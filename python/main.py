@@ -44,6 +44,9 @@ parser.add_argument(
 parser.add_argument(
     "-X", dest="append", type=str, default=None, help="filename to append onto asm"
 )
+parser.add_argument(
+    "-Y", dest="symtab", action="store_true", default=False, help="output symbol table"
+)
 
 
 def main(argv: list[str]):
@@ -72,7 +75,18 @@ def main(argv: list[str]):
         if args.outasm:
             srcpath.with_suffix(".s").write_text(asmsrc, "ascii")
             continue
-        binary = backasm(asmsrc + append).assemble()
+        assembler = backasm(asmsrc + append)
+        binary = assembler.assemble()
+        if args.symtab:
+            symtab = [
+                (name, value)
+                for name, value in assembler.symtab.items()
+                if name[0] != "L"
+            ]
+            symtext = ""
+            for name, value in sorted(symtab, key=lambda s: s[1]):
+                symtext += f"{name}: {hex(value)}\n"
+            srcpath.with_suffix(".sym").write_text(symtext, "ascii")
         srcpath.with_suffix(".o").write_bytes(binary)
 
 

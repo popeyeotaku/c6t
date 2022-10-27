@@ -19,7 +19,7 @@ OPNAMES: tuple[str, ...] = (
     "preinc",
     "predec",
     "postinc",
-    'postdec',
+    "postdec",
     "brz",
     "load",
     "name",
@@ -75,11 +75,11 @@ OPNAMES: tuple[str, ...] = (
     "seek",
     "read",
     "write",
-    'ldiv',
-    'swap',
-    'save_state',
-    'restore_state',
-    'unlink',
+    "ldiv",
+    "swap",
+    "save_state",
+    "restore_state",
+    "unlink",
 )
 OPCODES: dict[str, int] = {opname: opcode for opcode, opname in enumerate(OPNAMES)}
 OPNUMS: dict[int, str] = {opnum: opname for opname, opnum in OPCODES.items()}
@@ -633,9 +633,9 @@ def do_logop(c6tvm: VM, opcode: str, args: list[int]) -> None:
         case _:
             raise ValueError(opcode)
     if c6tvm.pop() == 0:
-        c6tvm.push(notzero)
-    else:
         c6tvm.push(iszero)
+    else:
+        c6tvm.push(notzero)
 
 
 @addop("dup")
@@ -843,12 +843,14 @@ def do_rw(c6tvm: VM, opcode: str, args: list[int]) -> None:
         case _:
             raise ValueError(opcode)
 
+
 LDIV_HI = 0
 LDIV_LO = 1
 
-@addop('ldiv')
+
+@addop("ldiv")
 # pylint:disable=unused-argument
-def do_ldiv(c6tvm:VM, opcode:str, args:list[int]) -> None:
+def do_ldiv(c6tvm: VM, opcode: str, args: list[int]) -> None:
     """Perform a long division. End of stack is the number to divide by,
     signed, and above it is a pointer to an array interpreted as a signed
     32bit value. Returns remainder on bottom of stack and divided value above
@@ -856,18 +858,30 @@ def do_ldiv(c6tvm:VM, opcode:str, args:list[int]) -> None:
     """
     bottom = c6tvm.fromword(c6tvm.toword(c6tvm.pop()), signed=True)
     topaddr = c6tvm.pop()
-    hiword = c6tvm.grab(topaddr+LDIV_HI*2, 2)
-    loword = c6tvm.grab(topaddr+LDIV_LO*2, 2)
+    hiword = c6tvm.grab(topaddr + LDIV_HI * 2, 2)
+    loword = c6tvm.grab(topaddr + LDIV_LO * 2, 2)
     topbytes = bytes([loword[0], loword[1], hiword[0], hiword[1]])
     top = c6tvm.fromword(topbytes, signed=True)
     c6tvm.push(math.floor(top / bottom))
     c6tvm.push(int(math.remainder(top, bottom)))
 
-@addop('swap')
+
+@addop("swap")
 # pylint:disable=unused-argument
-def do_swap(c6tvm:VM, opcode:str, args:list[int]) -> None:
+def do_swap(c6tvm: VM, opcode: str, args: list[int]) -> None:
     """Swap bottom two elements on stack."""
     right = c6tvm.pop()
     left = c6tvm.pop()
     c6tvm.push(right)
     c6tvm.push(left)
+
+
+def main(prgname: str, *prgargs: str) -> None:
+    """Run the VM with the given program, with optional args to it."""
+    prgpath = Path(PurePosixPath(prgname))
+    prgvm = VM(prgpath.read_bytes())
+    prgvm.exec(prgname, *prgargs)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1], *sys.argv[2:])
