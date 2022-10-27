@@ -220,7 +220,7 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
             if right.typestr.floating:
                 right = build(state, "toint", right)
         case Type.POINT:
-            if label == "sub":
+            if label == "sub" and left.typestr == right.typestr:
                 sizeleft, sizeright = (
                     (node.typestr.sizenext() if node.typestr.pointer else 1)
                     for node in (left, right)
