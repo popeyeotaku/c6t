@@ -1,16 +1,18 @@
 """C6T VM"""
 
+from argparse import ArgumentParser
 import itertools
 import math
 import operator
+import re
 import sys
 import time
 from collections import deque
 from io import SEEK_CUR, SEEK_END, SEEK_SET, StringIO
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable, TextIO
+from typing import Any, Callable, Literal, TextIO
 
-import unicurses
+# import unicurses
 
 MAX_FILES = 15
 
@@ -131,7 +133,7 @@ IRQS: tuple[str, ...] = (
 class VM:
     """C6T VM."""
 
-    def __init__(self, program: bytes) -> None:
+    def __init__(self, program: bytes, debug: bool = False, symfile: str = "") -> None:
         self.mem = bytearray(0xFFFF + 1)
         self._prg = program
         self.regs = {reg: 0 for reg in REGS}
@@ -141,6 +143,90 @@ class VM:
         self.blockirq: bool = False
         self.files: list[Any | None] = [None] * MAX_FILES
         self.unlink_queue: set[Path] = set()
+
+        self.debug = debug
+        self.breakpoints: set[int] = set()
+        self.single = False
+        self.symtab: dict[str, int] = {}
+        if self.debug and symfile:
+            symtxt = Path(symfile).read_text("ascii")
+            for match in re.finditer(r"\s*(\S+?): 0x([a-fA-F0-9]+)", symtxt):
+                self.symtab[match[1]] = int(match[2], base=16)
+
+    def disasm(self, addr: int) -> tuple[str, int]:
+        """Return a disassembled for of an instruction, along with its size
+        in bytes.
+        """
+        opnum = self.fromword(self.grab(addr, 1))
+        opcode = OPNUMS[opnum]
+        if opcode in OPMULTARGS:
+            argcount = OPMULTARGS[opcode]
+        elif opcode in OPARGS:
+            argcount = 1
+        else:
+            argcount = 0
+        argsnums = [
+            self.fromword(self.grab(addr + 1 + i * 2, 2)) for i in range(argcount)
+        ]
+        args: list[str] = []
+        for arg in argsnums:
+            if arg in self.symtab.values():
+                args.append(self.findsym(arg))
+            else:
+                args.append(hex(arg))
+        return f"{opcode} {','.join(args)}".strip(), 1 + argcount * 2
+
+    @property
+    def peekpc(self) -> str:
+        """Peek the current instruction."""
+        return self.disasm(self.regs["pc"])[0]
+
+    def disasm_mult(self, addr: int, count: int) -> str:
+        """Disassemble multiple instructions."""
+        out = ""
+        for _ in range(count):
+            line, size = self.disasm(addr)
+            addr += size
+            out += f"{hex(addr)}: {line}\n"
+        return out
+
+    def peekpc_mult(self, count: int) -> str:
+        """Disassemble multiple instructions starting at the current PC."""
+        return self.disasm_mult(self.regs["pc"], count)
+
+    @property
+    def peekstk(self) -> list[int]:
+        """Peek the values from the FP to the SP (including autos)."""
+        return list(
+            reversed(
+                [self.peek(i) for i in range(0, self.regs["fp"] - self.regs["sp"], 2)]
+            )
+        )
+
+    @property
+    def peekstk_sym(self) -> list[str]:
+        """Peekstk but each value is looked up via peeksym."""
+        out: list[str] = []
+        for i in self.peekstk:
+            if i in self.symtab.values():
+                out.append(self.findsym(i))
+            else:
+                out.append(hex(i))
+        return out
+
+    def addbrk(self, *targets: str | int) -> None:
+        """Add a debug breakpoint."""
+        for target in targets:
+            if isinstance(target, str):
+                target = self.symtab[target]
+            self.breakpoints.add(target)
+
+    def offbrk(self, *targets: str | int) -> None:
+        """Remove a breakpoint."""
+        for target in targets:
+            if isinstance(target, str):
+                target = self.symtab[target]
+            self.breakpoints.remove(target)
 
     def alloc_file(self) -> int:
         """Return the next unallocated file descriptor, or -1 if none
@@ -221,12 +307,12 @@ class VM:
         # pylint:disable=unused-variable
         self.copy(0, self.prg)
 
-        stdscr = unicurses.initscr()
-        unicurses.clear()
-        unicurses.noecho()
-        unicurses.cbreak()
-        unicurses.clear()
-        unicurses.nodelay(stdscr, 1)
+        # stdscr = unicurses.initscr()
+        # unicurses.clear()
+        # unicurses.noecho()
+        # unicurses.cbreak()
+        # unicurses.clear()
+        # unicurses.nodelay(stdscr, 1)
 
         self.stdout = StringIO()
         self.inbuf = deque()
@@ -249,15 +335,15 @@ class VM:
                 self.irq(nextirq)
                 nextirq = ""
 
-            while outpos < self.stdout.tell():
-                self.stdout.seek(outpos, SEEK_SET)
-                for char in self.stdout.read():
-                    unicurses.addch(char)
-                outpos = self.stdout.tell()
+            # while outpos < self.stdout.tell():
+            #     self.stdout.seek(outpos, SEEK_SET)
+            #     for char in self.stdout.read():
+            #         unicurses.addch(char)
+            #     outpos = self.stdout.tell()
 
-            while (ichar := unicurses.getch()) != unicurses.ERR:
-                assert isinstance(ichar, int)
-                self.inbuf.append(chr(ichar & 0o177))
+            # while (ichar := unicurses.getch()) != unicurses.ERR:
+            #     assert isinstance(ichar, int)
+            #     self.inbuf.append(chr(ichar & 0o177))
 
             irqleft = math.floor((time.monotonic() - start_time) / hertz)
 
@@ -265,7 +351,7 @@ class VM:
                 irqdone += 1
                 nextirq = "clock"
 
-        unicurses.endwin()
+        # unicurses.endwin()
         self.closeall()
 
     def closeall(self) -> None:
@@ -333,6 +419,10 @@ class VM:
         self.regs["fp"] = self.regs["sp"]
 
         self.regs["pc"] = start_pc
+
+        if self.debug:
+            self.single = True
+
         while self.regs["pc"] != 0xFFFF:
             self.step()
         self.closeall()
@@ -350,8 +440,46 @@ class VM:
         data = self.grab(self.regs["sp"] + offset, 2)
         return self.fromword(data)
 
+    @property
+    def hexregs(self) -> dict[str, str]:
+        """Hex representation of all registers."""
+        return {name: hex(i) for name, i in self.regs.items()}
+
+    def findsym(self, target: int) -> str:
+        """The offset from the closest symbol to the given position."""
+        if not self.debug:
+            return ""
+        addrs = [0] + list(sorted(self.symtab.values())) + [0xFFFF]
+        found: int | None = None
+        for i, addr in enumerate(addrs[:-1]):
+            if addr <= target < addrs[i + 1]:
+                found = addr
+                break
+        if found is None or found not in self.symtab.values():
+            raise ValueError(target)
+        foundname: str | None = None
+        for name, addr in self.symtab.items():
+            if addr == found:
+                foundname = name
+                break
+        if foundname is None:
+            raise ValueError(target)
+        diff = target - found
+        if diff:
+            foundname = f"{foundname}{sign(diff)}{abs(diff)}"
+        return foundname
+
+    def peeksym(self) -> str:
+        """Peek the symbol offset for the current PC."""
+        return self.findsym(self.regs["pc"])
+
     def step(self) -> None:
         """Single step the VM."""
+        if self.debug:
+            if self.single:
+                breakpoint()
+            elif self.regs["pc"] in self.breakpoints:
+                breakpoint()
         opcode = self.fromword(self.grabpc(1))
         if opcode not in OPNUMS:
             raise ValueError(f"invalid opcode {opcode}")
@@ -740,11 +868,11 @@ OPEN_MODES: dict[int, str] = {0: "rb", 1: "ab", 2: "r+b", 3: "wb"}
 def do_open(c6tvm: VM, opcode: str, args: list[int]) -> None:
     """Simulate the Unix6 open command. Has additional mode 3 for creat."""
     path = c6tvm.pop_path()
-    if path not in (
-        Path(".", "tmp", "e00001").absolute(),
-        Path(".", "ed", "test", "foo.bar").absolute(),
-    ):
-        raise ValueError(f"bad path {path}")
+    # if path not in (
+    #     Path(".", "tmp", "e00001").absolute(),
+    #     Path(".", "ed", "test", "foo.bar").absolute(),
+    # ):
+    #     raise ValueError(f"bad path {path}")
     mode = c6tvm.pop()
     descriptor = c6tvm.alloc_file()
     if descriptor == -1:
@@ -896,12 +1024,42 @@ def do_swap(c6tvm: VM, opcode: str, args: list[int]) -> None:
     c6tvm.push(left)
 
 
-def main(prgname: str, *prgargs: str) -> None:
-    """Run the VM with the given program, with optional args to it."""
-    prgpath = Path(PurePosixPath(prgname))
-    prgvm = VM(prgpath.read_bytes())
-    prgvm.exec(prgname, *prgargs)
+def sign(i: int) -> Literal["+", "-"]:
+    """Return the sign of the number."""
+    return "-" if i < 0 else "+"
+
+
+parser = ArgumentParser("vm")
+parser.add_argument(
+    "-d", dest="debug", default=False, action="store_true", help="enable debug"
+)
+parser.add_argument(
+    "-s",
+    metavar="SymTab",
+    dest="symtab",
+    type=str,
+    default="",
+    help="symbol table file",
+)
+parser.add_argument("prgname", type=str, help="program to exec")
+parser.add_argument(
+    "args",
+    metavar="arg",
+    type=str,
+    nargs="*",
+    help="arguments to the VM program (passed thru argc/argv)",
+)
+
+
+def main(args: list[str]) -> None:
+    """Main program."""
+    parsed = parser.parse_args(args)
+    prg = Path(parsed.prgname).read_bytes()
+    args = parsed.args
+    VM(prg, parsed.debug, parsed.symtab).exec(
+        *args,
+    )
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], *sys.argv[2:])
+    main(sys.argv[1:])
