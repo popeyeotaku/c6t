@@ -3,12 +3,12 @@
 import itertools
 import math
 import operator
-from pathlib import Path, PurePosixPath
 import sys
 import time
 from collections import deque
 from io import SEEK_CUR, SEEK_END, SEEK_SET, StringIO
-from typing import Any, BinaryIO, Callable, TextIO
+from pathlib import Path, PurePosixPath
+from typing import Any, Callable, TextIO
 
 import unicurses
 
@@ -80,21 +80,24 @@ OPNAMES: tuple[str, ...] = (
     "save_state",
     "restore_state",
     "unlink",
+    "bnz",
 )
 OPCODES: dict[str, int] = {opname: opcode for opcode, opname in enumerate(OPNAMES)}
 OPNUMS: dict[int, str] = {opnum: opname for opname, opnum in OPCODES.items()}
 OPARGS: tuple[str, ...] = (
     "useregs",
     "auto",
-    "predec",
     "brz",
+    "bnz",
     "auto",
     "preinc",
+    "postinc",
+    "predec",
+    "postdec",
     "name",
     "con",
     "dropargs",
     "jmp",
-    "postinc",
     "grabreg",
     "putreg",
     "dropstk",
@@ -136,7 +139,8 @@ class VM:
         self.inbuf: deque[str] = deque()
         self.inirq: bool = False
         self.blockirq: bool = False
-        self.files: list[BinaryIO | None] = [None] * MAX_FILES
+        self.files: list[Any | None] = [None] * MAX_FILES
+        self.unlink_queue:set[Path] = set()
 
     def alloc_file(self) -> int:
         """Return the next unallocated file descriptor, or -1 if none
@@ -155,7 +159,7 @@ class VM:
         for i in itertools.count(addr):
             if (i & 0xFFFF) < addr:
                 break  # overflow
-            byte = self.grab(addr, i)
+            byte = self.grab(i, 1)
             if byte[0] == 0:
                 break
             grabbed += byte
@@ -165,7 +169,8 @@ class VM:
         """Return a pathlib path from an ASCII string in the VM's memory
         starting at the given address.
         """
-        return Path(".") / Path(PurePosixPath(self.grabstr(addr)))
+        pathstr = self.grabstr(addr).removeprefix("/")
+        return Path.cwd() / Path(PurePosixPath(pathstr))
 
     def pop_path(self) -> Path:
         """Return a pathlib path from the ASCII string whose address is stored
@@ -269,6 +274,8 @@ class VM:
             if file:
                 file.close()
                 self.files[i] = None
+        for path in self.unlink_queue:
+            path.unlink()
 
     def irq(self, name: str) -> None:
         """Process an IRQ."""
@@ -406,14 +413,23 @@ def do_incdec(c6tvm: VM, opcode: str, args: list[int]) -> None:
     c6tvm.push(val)
 
 
-@addop("brz")
+@addop("brz", "bnz")
 # pylint:disable=unused-argument
 def do_brz(c6tvm: VM, opcode: str, args: list[int]) -> None:
-    """Pop a word off the stack and branch to the arg if it equals 0."""
+    """Pop a word off the stack and branch to the arg if it equals or does not
+    equal 0.
+    """
     arg = args[0]
     word = c6tvm.pop()
-    if word == 0:
-        c6tvm.regs["pc"] = arg
+    match opcode:
+        case "brz":
+            if word == 0:
+                c6tvm.regs["pc"] = arg
+        case "bnz":
+            if word != 0:
+                c6tvm.regs["pc"] = arg
+        case _:
+            raise ValueError(opcode)
 
 
 @addop("load", "cload")
@@ -456,7 +472,7 @@ def do_dropargs(c6tvm: VM, opcode: str, args: list[int]) -> None:
     """
     retval = c6tvm.pop()
     arg = args[0]
-    c6tvm.regs["sp"] -= arg * 2
+    c6tvm.regs["sp"] += arg * 2
     c6tvm.push(retval)
 
 
@@ -645,7 +661,7 @@ def do_dup(c6tvm: VM, opcode: str, args: list[int]) -> None:
     c6tvm.push(c6tvm.peek())
 
 
-@addop("add", "and", "sub", "div", "mult", "lshift", "or")
+@addop("add", "and", "sub", "div", "mult", "lshift", "rshift", "or")
 # pylint:disable=unused-argument
 def do_math(c6tvm: VM, opcode: str, args: list[int]) -> None:
     """Handle general math operations."""
@@ -699,7 +715,7 @@ def do_restore_state(c6tvm: VM, opcode: str, args: list[int]) -> None:
 def do_unlink(c6tvm: VM, opcode: str, args: list[int]) -> None:
     """Simulate the Unix 6 unlink command."""
     path = c6tvm.pop_path()
-    path.unlink()
+    c6tvm.unlink_queue.add(path)
 
 
 @addop("dropstk")
@@ -742,8 +758,8 @@ def do_open(c6tvm: VM, opcode: str, args: list[int]) -> None:
     except BaseException:
         c6tvm.push(-1)
         return
-    assert isinstance(file, BinaryIO)
     c6tvm.files[descriptor] = file
+    c6tvm.push(descriptor)
 
 
 @addop("neg")
@@ -794,7 +810,7 @@ def do_seek(c6tvm: VM, opcode: str, args: list[int]) -> None:
         return
     if file is None:
         return
-    if not file.seekable:
+    if not file.seekable():
         return
     if whence > max(WHENCES.keys()):
         whence -= max(WHENCES.keys())
@@ -851,19 +867,17 @@ LDIV_LO = 1
 @addop("ldiv")
 # pylint:disable=unused-argument
 def do_ldiv(c6tvm: VM, opcode: str, args: list[int]) -> None:
-    """Perform a long division. End of stack is the number to divide by,
-    signed, and above it is a pointer to an array interpreted as a signed
-    32bit value. Returns remainder on bottom of stack and divided value above
-    it.
-    """
-    bottom = c6tvm.fromword(c6tvm.toword(c6tvm.pop()), signed=True)
-    topaddr = c6tvm.pop()
-    hiword = c6tvm.grab(topaddr + LDIV_HI * 2, 2)
-    loword = c6tvm.grab(topaddr + LDIV_LO * 2, 2)
-    topbytes = bytes([loword[0], loword[1], hiword[0], hiword[1]])
+    """Perform long division (simulates Unix6 C ldiv function)."""
+    bot = c6tvm.pop()
+    bot = c6tvm.fromword(c6tvm.toword(bot), signed=True)
+    toplo = c6tvm.pop()
+    tophi = c6tvm.pop()
+    topbytes = c6tvm.toword(toplo) + c6tvm.toword(tophi)
     top = c6tvm.fromword(topbytes, signed=True)
-    c6tvm.push(math.floor(top / bottom))
-    c6tvm.push(int(math.remainder(top, bottom)))
+    div = int(math.floor(top / bot))
+    remain = int(math.remainder(top, bot))
+    c6tvm.push(div)
+    c6tvm.push(remain)
 
 
 @addop("swap")

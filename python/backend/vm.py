@@ -101,6 +101,7 @@ class BackendVM(BackendABC[str]):
             else:
                 self.outnode(addr)
                 self.asm("dup")
+                self.asm(f'{mode}load')
                 self.outnode(mod)
                 self.asm(operator)
                 self.asm(f"{mode}assign")
