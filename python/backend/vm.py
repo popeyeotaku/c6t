@@ -50,8 +50,8 @@ class BackendVM(BackendABC[str]):
                 self.asm("stkjmp")
             case "doswitch":
                 switchlen = self.nodestk.pop()
-                switchdef = self.nodestk.pop()
                 switchtable = self.nodestk.pop()
+                switchdef = self.nodestk.pop()
                 switchexpr = self.nodestk.pop()
                 self.doswitch(switchlen, switchdef, switchtable, switchexpr)
             case "ret":
@@ -142,11 +142,12 @@ class BackendVM(BackendABC[str]):
                     args = []
                 else:
                     args = self.callargs(node.children[1])
-                for arg in reversed(args):
+                for arg in args:
                     self.outnode(arg)
                 self.outnode(node[0])
                 self.asm("call")
-                self.asm("dropargs", str(len(args)))  # Doesnt support floating
+                if args:
+                    self.asm("dropargs", str(len(args)))  # Doesnt support floating
             case "preinc" | "predec" | "postinc" | "postdec":
                 assert node[1].label == "con"
                 assert isinstance(node[1].value, int)

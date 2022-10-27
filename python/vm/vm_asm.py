@@ -228,7 +228,7 @@ class Assembler:
                         pass
                     case ".ds":
                         self.curseg.curloc += sum((int(arg) for arg in args))
-                    case ".dc":
+                    case ".db":
                         self.curseg.curloc += len(args)
                     case ".dw":
                         self.curseg.curloc += len(args) * 2

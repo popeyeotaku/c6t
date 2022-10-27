@@ -7,8 +7,8 @@ from pathlib import Path, PurePosixPath
 import sys
 import time
 from collections import deque
-from io import SEEK_SET, BytesIO, StringIO
-from typing import Any, Callable, TextIO
+from io import SEEK_CUR, SEEK_END, SEEK_SET, StringIO
+from typing import Any, BinaryIO, Callable, TextIO
 
 import unicurses
 
@@ -16,9 +16,11 @@ MAX_FILES = 15
 
 OPNAMES: tuple[str, ...] = (
     "auto",
-    "predec",
-    "brz",
     "preinc",
+    "predec",
+    "postinc",
+    'postdec',
+    "brz",
     "load",
     "name",
     "con",
@@ -28,7 +30,6 @@ OPNAMES: tuple[str, ...] = (
     "retnull",
     "assign",
     "cassign",
-    "postinc",
     "cload",
     "useregs",
     "chrout",
@@ -68,6 +69,17 @@ OPNAMES: tuple[str, ...] = (
     "mult",
     "or",
     "open",
+    "neg",
+    "ret",
+    "close",
+    "seek",
+    "read",
+    "write",
+    'ldiv',
+    'swap',
+    'save_state',
+    'restore_state',
+    'unlink',
 )
 OPCODES: dict[str, int] = {opname: opcode for opcode, opname in enumerate(OPNAMES)}
 OPNUMS: dict[int, str] = {opnum: opname for opname, opnum in OPCODES.items()}
@@ -124,7 +136,7 @@ class VM:
         self.inbuf: deque[str] = deque()
         self.inirq: bool = False
         self.blockirq: bool = False
-        self.files: list[BytesIO | None] = [None] * MAX_FILES
+        self.files: list[BinaryIO | None] = [None] * MAX_FILES
 
     def alloc_file(self) -> int:
         """Return the next unallocated file descriptor, or -1 if none
@@ -286,6 +298,10 @@ class VM:
 
         REMEMBER THE FIRST ARG PASSED SHOULD BE THE PROGRAM NAME!!!
         """
+        self.files[0] = sys.stdin.buffer
+        self.files[1] = stdout.buffer
+        self.files[2] = sys.stdout.buffer
+
         self.copy(0, self.prg)
         self.stdout = stdout
         self.regs["pc"] = start_pc
@@ -700,12 +716,7 @@ def do_stkjmp(c6tvm: VM, opcode: str, args: list[int]) -> None:
     c6tvm.regs["pc"] = c6tvm.pop()
 
 
-OPEN_MODES: dict[int, str] = {
-    0: "rb",
-    1: "ab",
-    2: "r+b",
-    3: 'wb'
-}
+OPEN_MODES: dict[int, str] = {0: "rb", 1: "ab", 2: "r+b", 3: "wb"}
 
 
 @addop("open")
@@ -731,5 +742,132 @@ def do_open(c6tvm: VM, opcode: str, args: list[int]) -> None:
     except BaseException:
         c6tvm.push(-1)
         return
-    assert isinstance(file, BytesIO)
+    assert isinstance(file, BinaryIO)
     c6tvm.files[descriptor] = file
+
+
+@addop("neg")
+# pylint:disable=unused-argument
+def do_unary(c6tvm: VM, opcode: str, args: list[int]) -> None:
+    """Unary math operations."""
+    val = c6tvm.pop()
+    match opcode:
+        case "neg":
+            opfunc = operator.neg
+        case _:
+            raise ValueError(opcode)
+    c6tvm.push(opfunc(val))
+
+
+@addop("close")
+# pylint:disable=unused-argument
+def do_close(c6tvm: VM, opcode: str, args: list[int]) -> None:
+    """Simulate unix Close call."""
+    descriptor = c6tvm.pop()
+    try:
+        file = c6tvm.files[descriptor]
+    except IndexError:
+        return
+    if file is None:
+        return
+    file.close()
+    c6tvm.files[descriptor] = None
+
+
+WHENCES = {
+    0: SEEK_SET,
+    1: SEEK_CUR,
+    2: SEEK_END,
+}
+
+
+@addop("seek")
+# pylint:disable=unused-argument
+def do_seek(c6tvm: VM, opcode: str, args: list[int]) -> None:
+    """Simulate unix 6 seek call."""
+    whence = c6tvm.pop()
+    pos = c6tvm.pop()
+    descriptor = c6tvm.pop()
+    try:
+        file = c6tvm.files[descriptor]
+    except IndexError:
+        return
+    if file is None:
+        return
+    if not file.seekable:
+        return
+    if whence > max(WHENCES.keys()):
+        whence -= max(WHENCES.keys())
+        pos *= 512
+    try:
+        host_whence = WHENCES[whence]
+    except KeyError:
+        return
+    file.seek(pos, host_whence)
+
+
+@addop("read", "write")
+# pylint:disable=unused-argument
+def do_rw(c6tvm: VM, opcode: str, args: list[int]) -> None:
+    """Simulate a Unix6 read/write call."""
+    count = c6tvm.pop()
+    buffer = c6tvm.pop()
+    descriptor = c6tvm.pop()
+    try:
+        file = c6tvm.files[descriptor]
+    except IndexError:
+        c6tvm.push(-1)
+        return
+    if file is None:
+        c6tvm.push(-1)
+        return
+    match opcode:
+        case "read":
+            try:
+                data = file.read(count)
+            # pylint:disable=broad-except
+            except BaseException:
+                c6tvm.push(-1)
+                return
+            c6tvm.copy(buffer, data)
+            c6tvm.push(len(data))
+        case "write":
+            data = c6tvm.grab(buffer, count)
+            try:
+                write_count = file.write(data)
+            # pylint:disable=broad-except
+            except BaseException:
+                c6tvm.push(-1)
+                return
+            c6tvm.push(write_count)
+        case _:
+            raise ValueError(opcode)
+
+LDIV_HI = 0
+LDIV_LO = 1
+
+@addop('ldiv')
+# pylint:disable=unused-argument
+def do_ldiv(c6tvm:VM, opcode:str, args:list[int]) -> None:
+    """Perform a long division. End of stack is the number to divide by,
+    signed, and above it is a pointer to an array interpreted as a signed
+    32bit value. Returns remainder on bottom of stack and divided value above
+    it.
+    """
+    bottom = c6tvm.fromword(c6tvm.toword(c6tvm.pop()), signed=True)
+    topaddr = c6tvm.pop()
+    hiword = c6tvm.grab(topaddr+LDIV_HI*2, 2)
+    loword = c6tvm.grab(topaddr+LDIV_LO*2, 2)
+    topbytes = bytes([loword[0], loword[1], hiword[0], hiword[1]])
+    top = c6tvm.fromword(topbytes, signed=True)
+    c6tvm.push(math.floor(top / bottom))
+    c6tvm.push(int(math.remainder(top, bottom)))
+
+@addop('swap')
+# pylint:disable=unused-argument
+def do_swap(c6tvm:VM, opcode:str, args:list[int]) -> None:
+    """Swap bottom two elements on stack."""
+    right = c6tvm.pop()
+    left = c6tvm.pop()
+    c6tvm.push(right)
+    c6tvm.push(left)
