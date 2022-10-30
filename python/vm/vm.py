@@ -186,8 +186,8 @@ class VM:
         out = ""
         for _ in range(count):
             line, size = self.disasm(addr)
+            out += f"{self.findsym(addr)}: {line}\n"
             addr += size
-            out += f"{hex(addr)}: {line}\n"
         return out
 
     def peekpc_mult(self, count: int) -> str:
@@ -227,6 +227,34 @@ class VM:
             if isinstance(target, str):
                 target = self.symtab[target]
             self.breakpoints.remove(target)
+
+    def lookup(self, target: str) -> int:
+        """Toggle a breakpoint on a VM.findsym() formatted string."""
+        if match := re.match(r"(.+)?([+-][0-9]+)", target):
+            addr = self.symtab[match[1]] + int(match[2])
+        elif match := re.match(r"0x([0-9a-fA-F]+)", target):
+            addr = int(match[1], base=16)
+        elif match := re.match("[0-9]+", target):
+            addr = int(match[0])
+        elif target in self.symtab:
+            addr = self.symtab[target]
+        else:
+            raise ValueError(target)
+        return addr
+
+    def brk(self, *targets: str) -> None:
+        """Toggle breakpoints on each target."""
+        for target in targets:
+            addr = self.lookup(target)
+            if addr in self.breakpoints:
+                self.breakpoints.remove(addr)
+            else:
+                self.breakpoints.add(addr)
+
+    @property
+    def brks(self) -> list[str]:
+        """findsym representation of breakpoints"""
+        return [self.findsym(brk) for brk in self.breakpoints]
 
     def alloc_file(self) -> int:
         """Return the next unallocated file descriptor, or -1 if none
@@ -285,6 +313,7 @@ class VM:
         """Turn an integer into byte values."""
         bytelen = math.ceil(i.bit_length() / 8) + 1
         ibytes = i.to_bytes(bytelen, "little", signed=True) + bytes(2)
+        assert len(ibytes[:2]) == 2
         return ibytes[:2]
 
     def fromword(self, word: bytes, *, signed: bool = False) -> int:
@@ -420,9 +449,6 @@ class VM:
 
         self.regs["pc"] = start_pc
 
-        if self.debug:
-            self.single = True
-
         while self.regs["pc"] != 0xFFFF:
             self.step()
         self.closeall()
@@ -472,6 +498,21 @@ class VM:
     def peeksym(self) -> str:
         """Peek the symbol offset for the current PC."""
         return self.findsym(self.regs["pc"])
+
+    @property
+    def frame(self) -> dict[str, int]:
+        """The current stack frame."""
+        frame: dict[str, int] = {}
+        names = ["reg2", "reg1", "reg0", "fp", "pc"]
+        addr = self.regs["fp"]
+        for i, name in enumerate(names):
+            frame[name] = self.fromword(self.grab(addr + i * 2, 2))
+        return frame
+
+    @property
+    def hexframe(self) -> dict[str, str]:
+        """Hex view of the current stack frame."""
+        return {name: hex(i) for name, i in self.frame.items()}
 
     def step(self) -> None:
         """Single step the VM."""
@@ -825,8 +866,9 @@ def do_math(c6tvm: VM, opcode: str, args: list[int]) -> None:
 def do_save_state(c6tvm: VM, opcode: str, args: list[int]) -> None:
     """Save registers into the addr on the stack."""
     addr = c6tvm.pop()
-    for i, reg in enumerate(c6tvm.regs.values()):
-        c6tvm.copy(addr + i * 2, c6tvm.toword(reg))
+    names = ("pc", "fp", "reg0", "reg1", "reg2")
+    for i, name in enumerate(names):
+        c6tvm.copy(addr + i * 2, c6tvm.toword(c6tvm.frame[name]))
 
 
 @addop("restore_state")
@@ -834,8 +876,11 @@ def do_save_state(c6tvm: VM, opcode: str, args: list[int]) -> None:
 def do_restore_state(c6tvm: VM, opcode: str, args: list[int]) -> None:
     """Restore registers from addr on the stack."""
     addr = c6tvm.pop()
-    for i, reg in reversed(list(enumerate(c6tvm.regs.keys()))):
-        c6tvm.regs[reg] = c6tvm.fromword(c6tvm.grab(addr + i * 2, 2))
+    names = ("pc", "fp", "reg0", "reg1", "reg2")
+    frame: dict[str, int] = {}
+    for i, name in enumerate(names):
+        frame[name] = c6tvm.fromword(c6tvm.grab(addr + i * 2, 2))
+    c6tvm.regs.update(frame)
 
 
 @addop("unlink")
@@ -1008,8 +1053,8 @@ def do_ldiv(c6tvm: VM, opcode: str, args: list[int]) -> None:
     tophi = c6tvm.pop()
     topbytes = c6tvm.toword(toplo) + c6tvm.toword(tophi)
     top = c6tvm.fromword(topbytes, signed=True)
-    div = int(math.floor(top / bot))
-    remain = int(math.remainder(top, bot))
+    div = math.floor(top / bot)
+    remain = math.floor(top % bot)
     c6tvm.push(div)
     c6tvm.push(remain)
 
@@ -1057,6 +1102,7 @@ def main(args: list[str]) -> None:
     prg = Path(parsed.prgname).read_bytes()
     args = parsed.args
     VM(prg, parsed.debug, parsed.symtab).exec(
+        parsed.prgname,
         *args,
     )
 
