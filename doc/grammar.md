@@ -118,6 +118,8 @@ When the parser exits the function definition, any local declarations or struct/
 
 Declarations are used to specify the type and name of an object.
 
+### Type Declarators
+
     typedecls = {typedecl};
 
 A type declaration list is used in a variety of places, usually with some special logic as to what it wants to do with the declaration.
@@ -126,9 +128,13 @@ A type declaration list is used in a variety of places, usually with some specia
 
 A type declaration line constists of a base type and storage class, followed by an optional line of declarators, and a final semicolon.
 
+### Type Class
+
     typeclass = type class | class type | type | class ;
 
 A typeclass specifies a base type and/or a storage class for the current declaration line. Whereas in modern C, any number of tagged are incorporated into this section, the C6T language only has these two.
+
+### Base Type
 
     type = 'int' | 'char' | 'float' | 'double' | 'struct' structdef ;
 
@@ -141,6 +147,8 @@ A base type specification.
 - **struct**: Structs are not quite a real data type, and are not well integrated into the surrounding system. A struct is treated as a block of data with a arbirtrary size in bytes. The only legal operations on a struct are to get its address, or perform a member operator (**.** or **->**).
 
 These base types are tacked onto the end of following declarators. If no base type is specified in a type class, **int** is assumed.
+
+### Structs
 
     structdef = NAME members | NAME | members;
 
@@ -167,6 +175,10 @@ It is legal to redefine a member as long as it has the same type and offset. Thi
 
 In other words, it is useful to have structs with the same initial part but varying equivalent later parts (for instance, to store nodes with different value types). Ordinarily a union would reserve the maximum of the space required by all the given types; since C6T has no alignment and clearly defines the size of all data elements, this may be done -- albeit awkwardly -- by the poor programmer.
 
+It may be useful to specify struct sizes as a power of 2, since that will aid in pointer arithmetic when indexing arrays.
+
+### Storage Class
+
     class = 'extern' | 'auto' | 'static' | 'register';
 
 Storage classes specify the manner in which data appears in memory.
@@ -184,9 +196,13 @@ If a storage class is not listed in a typeclass, auto is assumed if inside local
 
 If a storage class specifier is used in a context where the required class is known (anywhere except a local type declaration list), the storage class specified is ***ignored***, and the required one is employed instead. `auto foo(bar) static bar; { return (bar); }` will place foo as an extern class, and bar as an auto class.
 
+### Declarators
+
     decl = datadecl | funcdecl;
 
 A data or function declarator.
+
+### Data Declarators
 
     datadecl =
         NAME |
@@ -203,7 +219,7 @@ A data or function declarator.
 
 A **NAME** specifies the name used for the declarator, and the current base type is inserted here. It has the highest priority.
 
-A **\*** binds right to left, has lower priority than **NAME**, and prepends a *POINTER TO ...* onto the current type string.
+A **\*** binds right to left, has lower priority than **NAME**, and prepends a *POINTER TO ...* onto the current type string. ***POINTERS ARE GUARENTEED TO BE EQUIVALENT TO PHYSICALLY INTS***.
 
 A **()** binds left to right, is lower priority than **NAME** but higher priority than **\***, and prepends a *FUNCTION RETURNING ...* onto the current type string.
 
@@ -224,6 +240,8 @@ The size of a type is calculable as follows in bytes:
 
 **int**, **char**, **float**, **double**, and **struct** can be described as a *base type*. **pointer**, **function**, and **array** can be described as modifier types.
 
+### Function declarators
+
     funcdecl =
         NAME '(' [paramnames] ')'
         | '*' funcdecl
@@ -241,5 +259,197 @@ The NAME '(' ... ')' form should be regarded identically to the data declarator 
 Paremeter names are assigned positions on the stack such that the first name is at the lowest memory position, with furst names increasing in address.
 
 ## Statements
+
+    statement = 
+        NAME ':' statement
+        | IF '(' expr ')' statement [ELSE statement]
+        | WHILE '(' expr ')' statement
+        | DO statement WHILE '(' expr ')' ';'
+        | FOR '(' [expr] ';' [expr] ';' [expr] ')' statement
+        | SWITCH '(' expr ')' statement
+        | CASE conexpr ':' statement
+        | DEFAULT ':' statement
+        | BREAK ';'
+        | CONTINUE ';'
+        | RETURN ';'
+        | RETURN '(' expr ')' ';'
+        | GOTO expr ';'
+        | ';'
+        | '{' {statement} '}'
+        | expr ';'
+    ;
+
+A statement assembles executable code for the current function.
+
+## Labels
+
+    NAME ':' statement
+
+This places a static goto label in front of a statement. Goto labels have type *array of one int*, although you should not rely on the array dimension; it is employed so that its address will not be loaded in a **GOTO** statement.
+
+## If Statement
+
+    IF '(' expr ')' statement [ELSE statement]
+
+The **IF** statement evaluates the leading expression; if it is equal to 0, the first statement will be skipped. In the event of an ELSE, the second statement is evaluated only if the expression is equal to 0.
+
+Something to the effect of:
+
+    /* expr */
+    brz L1
+    /* true-statement */
+    jmp L2
+    L1: /* false-statement */
+    L2:
+
+if else is employed,
+
+    /* expr */
+    brz L1
+    /* true-statement */
+    L1:
+
+if else is not employed.
+
+### While Statement
+
+    WHILE '(' expr ')' statement
+
+As long as the expression evalutes as non-zero, the statement is executed.
+
+Something to the effect of:
+
+    continue_label:
+    /* expr */
+    brz break_label
+    /* statement */
+    jmp continue_label
+    break_label:
+
+where continue_label and break_label specify the targets of continues and breaks.
+
+### Do Statement
+
+    DO statement WHILE '(' expr ')' ';'
+
+The statement is executed, and then re-executed as long as the expression is non-zero. In other words, an equivalent to while with the test at the end, and which always executes at least once.
+
+Something to the effect of:
+
+    L1:
+    /* statement */
+    continue_label:
+    /* expr */
+    brz break_label
+    jmp L1
+    break_label
+
+where continue_label and break_label specify the targets of continues and breaks.
+
+### For Statement
+
+    FOR '(' [expr] ';' [expr] ';' [expr] ')' statement
+
+The first optional expression is executed. The second (if present) is used as a test; the statement is executed as long as the test expression evaluates to non-zero. If the test expression is not present, the statement always executes. Finally, the third expression is used as an update.
+
+Something to the efect of:
+
+    /* first expr */
+    L1: /* second expr */
+    brz break_label
+    /* statement */
+    continue_label:
+    /* third expr */
+    jmp L1
+    break_label
+
+where continue_label and break_label specify the targets of continues and breaks.
+
+### Switch Statement
+
+    SWITCH '(' expr ')' statement
+
+The statement contains any number of **CASE** labels, and one optional **DEFAULT** label. If the default label is not specified, the switch's break label is used.
+
+The expression is evaluated, and the **CASE** whose constant expression equals the expression's value is jumped to. If none match, the default/break label is jumped to.
+
+***THIS IS ALWAYS DONE VIA TABLE LOOKUP***. There may be optimizations as to which kind of table, which may at a later time be clearly defined, but -- unlike an *if-else if* chain, this is always a table lookup. Use accordingly as you would such a table in assembly.
+
+A break label is produced after execution of the switch statement.
+
+### Case Statement
+
+    CASE conexpr ':' statement
+
+Introduces a case label for the statement to the innermost enclosing switch statement. The value of the constant expression is used for the value the switch statement uses to jump into the appropriate statement.
+
+It is illegal to use a case statement outside of any switch.
+
+### Default Statement
+
+    DEFAULT ':' statement
+
+Introduces a default label for the statement ot the innermost enclosing switch statement. It is illegal to have more than one in a switch. If no cases match, the switch statement will jump to here.
+
+It is illegal to use a default statement outside of any switch.
+
+### Break and Continue Statements
+
+    BREAK ';'
+
+or
+
+    CONTINUE ';'
+
+will jump to the innermost enclosing break or continue label introduced by statement structres as described above.
+
+It is illegal to use when there is no such label introduced.
+
+### Return Statements
+
+    RETURN ';'
+
+or
+
+    RETURN '(' expr ')' ';'
+
+will return from the current function. The first implements a so-called 'null return' with no value, while the second will return with the given expression value.
+
+Sadly the behavior of using the value of a null-return function is undefined.
+
+It is not guarenteed the type of the returned value will be matched up to that of the function -- a non-floating function may return a double if the expression is floating type, or vice versa.
+
+### Goto Statement
+
+    GOTO expr ';'
+
+Evaluates the expression and jumps to it. You may load any number or variable here, not only case labels -- ***BUT UNLESS YOU KNOW WHAT YOU ARE DOING ON YOUR BACKEND AND DON'T DESIRE PORTABILITY***:
+
+- **goto** a local goto label within the function.
+- *Or*, **goto** a variable of type pointer to int, whose value is either an address inside this function (it's been set to a local label) *OR* whose code resets the stack in some way (equivalent to modern C's longjmp()).
+
+***BE VERY VERY WARY OF USING THIS SECOND FORM AT ALL***
+
+Despite these deadly warnings, goto's are not the worst thing in the world. Avoiding refactoring nested loops to get from point A to point B where breaks/continues may not help, or else having a standard error handler within a function, may be more clearly implemented with gotos. Having a weird flag variable may be more confusing than simply saying 'goto loop;'
+
+### Null Statements
+
+    ';'
+
+Does nothing and outputs no code.
+
+### Compound Statements
+
+    '{' {statement} '}'
+
+Executes those statements in sequence; it is equivalent to placing multiple statements where one is required.
+
+Note that, unlike later C, there is no proper block structure, and compound statements do not have their own scope.
+
+### Expression Statements
+
+    expr ';'
+
+The statement is evalutated and its value discarded.
 
 ## Expressions

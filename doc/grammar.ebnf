@@ -63,7 +63,7 @@ statement =
     | DO statement WHILE '(' expr ')' ';'
     | FOR '(' [expr] ';' [expr] ';' [expr] ')' statement
     | SWITCH '(' expr ')' statement
-    | CASE ':' statement
+    | CASE conexpr ':' statement
     | DEFAULT ':' statement
     | BREAK ';'
     | CONTINUE ';'
@@ -72,7 +72,7 @@ statement =
     | GOTO expr ';'
     | ';'
     | '{' {statement} '}'
-    | expr
+    | expr ';'
 ;
 
 expr1 =
