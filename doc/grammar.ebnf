@@ -112,3 +112,4 @@ expr = expr15;
 exprlist = expr;
 initexpr = expr_nocomma;
 initlist = exprlist;
+conexpr = expr;
