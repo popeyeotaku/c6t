@@ -110,3 +110,5 @@ expr15 = expr14 {',' expr14};
 expr_nocomma = expr14;
 expr = expr15;
 exprlist = expr;
+initexpr = expr_nocomma;
+initlist = exprlist;
