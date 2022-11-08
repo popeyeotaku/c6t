@@ -1,0 +1,112 @@
+program = {extdef};
+
+extdef = [typeclass] (datadef|funcdef);
+
+datadef = dataelem {',' dataelem} [','] ';';
+
+dataelem = funcdecl | (datadecl initializer);
+
+initializer = noinit | init;
+
+noinit = ['{' '}'];
+
+init = expr_nocomma | '{' exprlist '}' ;
+
+funcdef = funcdecl paramtypes '{' locals {statement} '}';
+
+paramtypes = typedecls ;
+
+locals = typedecls ;
+
+typedecls = {typedecl};
+
+typedecl = typeclass [decl {',' decl} [',']] ';';
+
+typeclass = type class | class type | type | class ;
+
+type = 'int' | 'char' | 'float' | 'double' | 'struct' structdef ;
+class = 'extern' | 'auto' | 'static' | 'register';
+
+structdef = NAME members | NAME | members;
+
+members = '{' typedecls '}';
+
+decl = datadecl | funcdecl;
+
+funcdecl =
+    NAME '(' [paramnames] ')'
+    | '*' funcdecl
+    | funcdecl '(' ')'
+    | funcdecl arraydecl
+    | '(' funcdecl ')'
+;
+
+paramnames = NAME {',' NAME} [','];
+
+datadecl =
+    NAME |
+    '*' datadecl
+    | datadecl '(' ')'
+    | datadecl arraydecl
+    | '(' datadecl ')'
+;
+
+arraydecl =
+    '[' ']'
+    | '[' conexpr ']'
+;
+
+statement = 
+    NAME ':' statement
+    | IF '(' expr ')' statement [ELSE statement]
+    | WHILE '(' expr ')' statement
+    | DO statement WHILE '(' expr ')' ';'
+    | FOR '(' [expr] ';' [expr] ';' [expr] ')' statement
+    | SWITCH '(' expr ')' statement
+    | CASE ':' statement
+    | DEFAULT ':' statement
+    | BREAK ';'
+    | CONTINUE ';'
+    | RETURN ';'
+    | RETURN '(' expr ')' ';'
+    | GOTO expr ';'
+    | ';'
+    | '{' {statement} '}'
+    | expr
+;
+
+expr1 =
+    NAME
+    | CON
+    | FCON
+    | STRING
+    | '(' expr15 ')'
+    | expr1 '(' exprlist ')'
+    | expr1 '[' expr15 ']'
+    | expr1 '.' NAME
+    | expr1 '->' NAME
+;
+expr2 =
+    expr1 {incdec}
+    | unary expr2
+;
+incdec = '++' | '--';
+unary = incdec | '~' | '*' | '&' | '-' | '!' | "sizeof";
+expr3 = expr2 {('*'|'/'|'%') expr2};
+expr4 = expr3 {('+'|'-') expr3};
+expr5 = expr4 {('>>'|'<<')expr4};
+expr6 = expr5 {('<'|'>'|'<='|'>=') expr5};
+expr7 = expr6 {('=='|'!=')expr6};
+expr8 = expr7 {'&' expr7};
+expr9 = expr8 {'^' expr8};
+expr10 = expr9 {'|' expr9};
+expr11 = expr10 {'&&' expr10};
+expr12 = expr11 {'||' expr11};
+expr13 = expr12 {'?' expr12 ':' expr12};
+expr14 = expr13 [assign expr14];
+assigns = '=' | '=+' | '=-' | '=*' | '=/' | '=%' | '=>>' | '=<<' | '=&' | '=^' | '=|';
+expr15 = expr14 {',' expr14};
+
+expr_nocomma = expr14;
+expr = expr15;
+exprlist = expr;
