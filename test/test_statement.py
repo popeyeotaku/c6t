@@ -2,8 +2,8 @@
 
 import unittest
 
-import extdef
-from c6tstate import ParseState
+from pyc6t.frontend import extdef
+from pyc6t.frontend.c6tstate import ParseState
 
 
 class StateTest(unittest.TestCase):
@@ -29,31 +29,31 @@ class StateTest(unittest.TestCase):
                 "dload",
                 "fbrz L1",
                 "auto 10",
-                'auto 10',
-                'dload',
+                "auto 10",
+                "dload",
                 "con 2",
                 "toflt",
-                'fmult',
+                "fmult",
                 "dassign",
                 "eval",
                 "L1:L2:auto 10",
                 "dload",
                 "fbrz L3",
                 "auto 10",
-                'auto 10',
-                'dload',
+                "auto 10",
+                "dload",
                 "con 1",
                 "toflt",
-                'fsub',
+                "fsub",
                 "dassign",
                 "eval",
                 "jmp L2",
                 "L3:L4:auto 10",
-                'auto 10',
-                'dload',
+                "auto 10",
+                "dload",
                 "con 1",
                 "toflt",
-                'fadd',
+                "fadd",
                 "dassign",
                 "eval",
                 "L5:auto 10",
@@ -74,11 +74,11 @@ class StateTest(unittest.TestCase):
                 "fless",
                 "brz L8",
                 "L7:auto 10",
-                'auto 10',
-                'dload',
+                "auto 10",
+                "dload",
                 "con 1",
                 "toflt",
-                'fadd',
+                "fadd",
                 "dassign",
                 "eval",
                 "jmp L9",

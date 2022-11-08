@@ -2,13 +2,11 @@
 
 from typing import Literal
 
-import lexer
-import opinfo
-import util
-from c6tstate import ParseState
-from expr import Node
-from symtab import Storage, FrozenSym
-from type6 import Type, TypeString
+from . import lexer, opinfo, util
+from .c6tstate import ParseState
+from .expr import Node
+from .symtab import FrozenSym, Storage
+from .type6 import Type, TypeString
 
 TypeChar = Literal["", "c", "f", "d"]
 
@@ -45,7 +43,7 @@ OPCODES: dict[str, str] = {
     "toint": "toint",
     "toflt": "toflt",
     "arg": "arg",
-    'nop': 'nop',
+    "nop": "nop",
 }
 OPCODES.update({assign: assign for assign in lexer.ASSIGNS.values()})
 
@@ -75,7 +73,7 @@ def asmexpr(state: ParseState, node: Node) -> None:
     if opcode not in opinfo.NOFLTOP and any(
         (node.typestr.floating) for node in [node] + list(node.children)
     ):
-        if (opcode == 'comma' and node[0].typestr.floating) or opcode == 'arg':
+        if (opcode == "comma" and node[0].typestr.floating) or opcode == "arg":
             pass
         else:
             opcode = "f" + opcode
@@ -132,8 +130,8 @@ def special(state: ParseState, node: Node) -> bool:
         state.asm(opcode)
         return True
     match node.label:
-        case 'nop':
-            state.asm('null')
+        case "nop":
+            state.asm("null")
             return True
         case "addr":
             asmexpr(state, node[0])

@@ -2,10 +2,10 @@
 
 import unittest
 
-import util
-from c6tstate import ParseState
-from extdef import declmods, extdef
-from type6 import Type, TypeElem
+from pyc6t.frontend import util
+from pyc6t.frontend.c6tstate import ParseState
+from pyc6t.frontend.extdef import declmods, extdef
+from pyc6t.frontend.type6 import Type, TypeElem
 
 
 class FuncTest(unittest.TestCase):

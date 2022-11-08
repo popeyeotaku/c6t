@@ -4,7 +4,7 @@ import dataclasses
 import re
 import typing
 
-import util
+from . import util
 
 NAMELEN = 8  # Maximum length of a NAME token (aka an 'identifier')
 
@@ -182,7 +182,7 @@ class Tokenizer:
         return Token(label, self.line, value)
 
     def __next__(self) -> Token:
-        token:None|Token
+        token: None | Token
         self._whitespace()
         if self.source.eof:
             token = self._token("eof")

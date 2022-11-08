@@ -3,11 +3,10 @@
 from dataclasses import dataclass, field
 from typing import Callable, TypedDict
 
-import expr
-import outexpr
-from c6tstate import ParseState
-from symtab import Storage, Symbol
-from type6 import Type, TypeElem, TypeString
+from . import expr, outexpr
+from .c6tstate import ParseState
+from .symtab import Storage, Symbol
+from .type6 import Type, TypeElem, TypeString
 
 
 @dataclass
@@ -22,7 +21,8 @@ class CaseCollection:
 
 
 StateStks = TypedDict(
-    "StateStks", {'contstk':list[int], 'brkstk':list[int], 'casestk':list[CaseCollection]}
+    "StateStks",
+    {"contstk": list[int], "brkstk": list[int], "casestk": list[CaseCollection]},
 )
 
 StateFunc = Callable[[ParseState, StateStks], None]
@@ -196,7 +196,7 @@ def retstate(state: ParseState, stks: StateStks) -> None:
     if state.match(";"):
         retnull(state)
     else:
-        outexpr.outexpr(state, (node :=parenexpr(state)))
+        outexpr.outexpr(state, (node := parenexpr(state)))
         state.need(";")
         state.asm(f"{'f' if node.typestr.floating else ''}ret")
 

@@ -1,6 +1,6 @@
 """C6T - C version 6 by Troy - Operator Info"""
 
-import lexer
+from . import lexer
 
 CALL = {"call", "ucall"}
 
@@ -17,10 +17,10 @@ UNARY = (
     "postdec",
     "toint",
     "toflt",
-    'compl',
+    "compl",
 )
 
-COMMAS = {'comma', 'arg'}
+COMMAS = {"comma", "arg"}
 
 COMMUTATIVE = {"add", "mult", "and", "or", "eor"}
 
@@ -40,7 +40,7 @@ SUPPORTS_FLOAT = {
     "equ",
     "nequ",
     "toint",
-    'assign',
+    "assign",
 }
 
 LESSGREAT = {"less", "great", "lequ", "gequ"}

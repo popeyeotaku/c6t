@@ -1,7 +1,6 @@
 """C6T - C version 6 by Troy - Shared Parser State"""
 
-import lexer
-import symtab
+from . import lexer, symtab
 
 MAXREGS: int = 3
 

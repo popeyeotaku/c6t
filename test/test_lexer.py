@@ -2,7 +2,7 @@
 
 import unittest
 
-import lexer
+from pyc6t.frontend import lexer
 
 
 class Lexer(unittest.TestCase):

@@ -12,12 +12,11 @@ gets passed a callback function for different situations.
 import math
 from typing import Callable, Literal
 
-import expr
-import statement
-from c6tstate import MAXREGS, ParseState
-from expr import conexpr
-from symtab import Storage, Symbol, SymType, SymTypeTuple
-from type6 import Type, TypeElem, TypeString
+from . import expr, statement
+from .c6tstate import MAXREGS, ParseState
+from .expr import conexpr
+from .symtab import Storage, Symbol, SymTypeTuple
+from .type6 import Type, TypeElem, TypeString
 
 START_OFFSET = 10  # Starting offset of parameters from the frame pointer
 
@@ -310,7 +309,7 @@ def local_callback(
 ) -> bool:
     """Callback function for seeing a declaration of a local."""
     assert state.localscope
-    offset:int|str
+    offset: int | str
     if typestr[0].label == Type.FUNC:
         storage = Storage.EXTERN
     if storage == Storage.REGISTER and state.usedregs >= MAXREGS:

@@ -1,9 +1,7 @@
 """C6T - C version 6 by Troy - Compiler Front-End.
 """
 
-import c6tstate
-import extdef
-import preproc
+from . import c6tstate, extdef, preproc
 
 
 def compile_c6t(source: str) -> str:
