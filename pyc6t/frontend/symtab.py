@@ -5,7 +5,7 @@ from __future__ import annotations
 import dataclasses
 import enum
 
-import type6
+from . import type6
 
 
 class Storage(enum.Enum):

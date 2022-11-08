@@ -3,12 +3,12 @@
 import typing
 import unittest
 
-import extdef
-from c6tstate import ParseState
-from expr import Node, expression
-from outexpr import outexpr
-from symtab import FrozenSym, Storage, Symbol
-from type6 import Type, TypeString
+from pyc6t.frontend import extdef
+from pyc6t.frontend.c6tstate import ParseState
+from pyc6t.frontend.expr import Node, expression
+from pyc6t.frontend.outexpr import outexpr
+from pyc6t.frontend.symtab import FrozenSym, Storage, Symbol
+from pyc6t.frontend.type6 import Type, TypeString
 
 
 def inode(label: str, *children: Node, value: typing.Any = None) -> Node:

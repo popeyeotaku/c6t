@@ -4,7 +4,7 @@ Parsing starts at either expr15 (if you want to see commas) or expr14 (if you
 don't). Each level of precedence has a corresponding expr value - expr1 at the
 highest priority, expr15 at the lowest. Each priority number corresponds
 to a section in the Research Unix Version 6 C Reference Manual: expr1 is
-secion 7.1, expr2 is section 7.2, etc.
+secion 7.1, expr2 is section w7.2, etc.
 """
 
 from __future__ import annotations
@@ -12,12 +12,10 @@ from __future__ import annotations
 import dataclasses
 import typing
 
-import lexer
-import opinfo
-import util
-from c6tstate import ParseState
-from symtab import Storage, Symbol, FrozenSym
-from type6 import Type, TypeElem, TypeString
+from . import lexer, opinfo, util
+from .c6tstate import ParseState
+from .symtab import FrozenSym, Storage, Symbol
+from .type6 import Type, TypeElem, TypeString
 
 
 @dataclasses.dataclass(frozen=True)

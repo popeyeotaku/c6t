@@ -4,13 +4,12 @@ import argparse
 import sys
 from pathlib import Path, PurePosixPath
 
-import backend.shared
-import backend.vm
-import preproc
-import vm.vm_asm
-from frontend import compile_c6t
+from ..backend import vm
+from ..vm import vm_asm
+from . import preproc
+from .frontend import compile_c6t
 
-BACKENDS = {"vm": (backend.vm.BackendVM, vm.vm_asm.Assembler)}
+BACKENDS = {"vm": (vm.BackendVM, vm_asm.Assembler)}
 
 parser = argparse.ArgumentParser(description="Frontend for the C6T compiler")
 parser.add_argument(

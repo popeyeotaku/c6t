@@ -1,7 +1,8 @@
 """C6T - C version 6 by Troy - Type System Unit Tests"""
 
 import unittest
-from type6 import TypeString, TypeElem, Type
+
+from pyc6t.frontend.type6 import Type, TypeElem, TypeString
 
 
 class TypeTest(unittest.TestCase):

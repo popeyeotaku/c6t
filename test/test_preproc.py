@@ -2,7 +2,7 @@
 
 import unittest
 
-import preproc
+from pyc6t.frontend import preproc
 
 
 class TestPreproc(unittest.TestCase):
@@ -22,7 +22,7 @@ class TestPreproc(unittest.TestCase):
     def test_include(self):
         """Test include macros."""
         self.cmp(
-            ["#", "#define FOO foo", '#include "python/test_preproc.c"', "FOO BAR"],
+            ["#", "#define FOO foo", '#include "test/test_preproc.c"', "FOO BAR"],
             ["", "", "", "@/* C6T include tests */", "", "", "@", " foo   bar "],
         )
 
