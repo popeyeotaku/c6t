@@ -106,7 +106,7 @@ It might help to think of function definitions as a special case of data initial
 
     paramtypes = typedecls ;
 
- The function declaration contains the names of any parameters; this series of declarations specifies their types.
+ The function declaration contains the names of any parameters; this series of declarations specifies their types. It is illegal to set a struct type for a parameter; array types are converted to pointers to the corresponding element, bare floats are converted to doubles, and bare chars are converted to ints.
 
     locals = typedecls ;
 
@@ -453,3 +453,93 @@ Note that, unlike later C, there is no proper block structure, and compound stat
 The statement is evalutated and its value discarded.
 
 ## Expressions
+
+Expressions are described from the highest priority at level 1, to the lowest at level 15.
+
+### Standard Type Conversions
+
+In binary operators, the rule usually is:
+
+    - either side floating type, the non-float gets converted to double and the resulting type is double
+    - either side pointer, an integral side if any gets multiplied by the size of what the pointer points to, and the resulting type is that of the pointer. If both sides are different pointers, the resulting type is indeterminate, but *probably* the type of the one on the left.
+    - otherwise, the type is int.
+
+A function type not used in a call operation gets a unary '&' prepended to it, so that it is a pointer to the function.
+
+An array type used outside of a unary '&' operation gets a unary '&' prepended, whose type is a pointer to what the array is of. In other words, the array is converted to the address of its contents.
+
+As an example, `int foo[5][10], *bar &foo[1][1];` will evaulate the initializer for bar as follows:
+
+1. foo is array of 5 arrays of 10 ints, so is converted to unary & (address of) pointer to array of 10 ints.
+2. this is added to 1 multiplied the 1 by 20 (the size of 10 ints) according to pointer arithmetic, and the result dereferenced
+3. the resulting type is dereference 20 + pointer to array of 10 ints; since that's an array type, it is converted to unary '&' of pointer to int, and the '&' and '*' cancel out, so the resulting type is pointer to int
+4. this is added to 1 multiplied by 2 according to pointer arithmetic, and the result is dereferenced.
+5. 5he resulting type is int, since we dereference the pointer type. However, the specified unary '&' in the expression makes this an address, suitable for an initializer.
+
+And the resulting assembly would be:
+
+    _bar: .dw _foo+22
+
+Expressions are internally evaluated as either int-sized or double-sized; pointers are done inside ints. Char and Float are only used to store in memory with less precision.
+
+### Lvalues and Rvalues
+
+An lvalue is an address, with the special case that registers may also be used even though their address may not be taken. This is because lvalues are used for loads and stores.
+
+The rule is, where an rvalue is required, if an lvalue is positioned instead, its corresponding value must be loaded from the address.
+
+The overwhelming majority of expressions use rvalues, so the requirement for an lvalue will be stated explicitly.
+
+### Expression Level 1
+
+    expr1 =
+        NAME
+        | CON
+        | FCON
+        | STRING
+        | '(' expr15 ')'
+        | expr1 '(' exprlist ')'
+        | expr1 '[' expr15 ']'
+        | expr1 '.' NAME
+        | expr1 '->' NAME
+    ;
+
+A primary expression. Can be split into the left side and the right side.
+
+Left sides consist of one of the following
+
+- **NAME**: The address of the NAME according to its storage class is produced. As such, this is an lvalue. If the NAME is undefined, the following occurs.
+  - If in local scope:
+    - If the next operator is a '(', indicated the start of a function call, then the NAME is set in the parser's symbol table as an **extern** of type *function returning int*. Since pointers and ints are largely synonymous, and structs/arrays may not be returned, this will work in most cases. This symbol will be marked as local so it will disappear when exiting local scope.
+    - Otherwise, it is assumed to be a undefined **GOTO** label of type array-of-integers. It is marked as undefined, so that upon exiting local scope, if the corresponding label was never specified in a statement, an error will occur. It is also marked local so that it will disappear upon exiting local scope.
+  - Otherwise, we're in extern scope, so assume an **extern** of type *int*.
+- **CON** or **FCON**: an integer or floating constant. An integer constant has type int, a floating constant has type double.
+- **STRING**: a pointer to the string is placed here, storage class **static**, of type *array of (length of string) chars*. As an array, it will have the unary '&' prepended to it according to the type conversion rules.
+- **'(' expr15 ')'**: allows adjustment of precedence rules; the set expression will evaluate first.
+
+After the left side, any number of right side operators may occur, binding left to right:
+
+- **expr1 '(' exprlist ')'**: a function call. The expression are evaluated, right to left, each pushed onto the C6T stack. If an expression is floating type, it will take up a double-sized chunk of stack; otherwise int sized. Then the left side is called as a function. Afterwords, the argument expressions are removed from the stack. ***NO CHECKING AS TO THE TYPE OF THE ARGUMENTS IS DONE***. Accordingly, you may pass a variable length argument list (for instance, to printf) but having a function get the address of one of its declared paremeters, and treating it as a pointer to its arguments; each subsequent argument will have a higher address, since the stack is downgrowing, and they were pushed right-to-left.
+- **expr1 '[' expr15 ']'**: equivalent exactly to '*((expr1)+(expr15))'.
+- **expr1 '.' NAME**: expr1 must be an lvalue, and not a register. The **NAME** must be a member tag. The offset of the tag is added to the lvalue, and the result is an lvalue of the type of the member. Note that the type of expr1 is *not* checked to be a struct; this is a feature, not a bug. The '.' operator may be applied to any address.
+- **expr1 '->' NAME**: expr1 is evaluated as an rvalue, with any loading that entails. The result must not be a float; it also does not have to be a struct or pointer. **NAME** must be a member tag. Its offset is added to the value of expr1, and the result is an lvalue of the type of the member. Since expr1's type is not checked, you may use it, for instance, to access a register in a memory mapped I/O structure; `100->foo` would access member foo starting at address decimal 100.
+
+### Expression Level 2
+
+Unary operators
+
+    expr2 =
+        expr1 {incdec}
+        | unary expr2
+    ;
+    incdec = '++' | '--';
+
+Right-associative. The unary operators are as follow:
+
+- **'~'**: requires a non-float; the resulting valuehas the same type, but all bits flipped.
+- **'*'**: dereference operator. Requires a pointer or array type. Result is an lvalue whose type is whatever the pointer pointed to. As a result, an additional rvalue use will have its contents loaded again. For instance, `extern *_foo, x; x = *foo;` will evaluate something like `_foo; load; load; store _x`; getting the contents of foo, and treating that as an address.
+- **&**: address-of operator. Requires an lvalue, and the result is treated as an rvalue; in other words, use the lvalue as an rvalue.
+- **-**: negation. May use floating or other type; the result is the negated form.
+- **!**: logical not operator. If the value was 0, the result is the constant 1; else, the result is the constant 0. Resulting value is integer.
+- **sizeof**: the right side exression is NOT evaluated; its type is taken and the result is an integer constant of the size of the type. *Unlike* modern C, there is no syntax to specify a general type here, so you must use an expression or variable with the type desired; `int foo; sizeof(foo)` instead of `sizeof(int)`.
+- **++** or **--**: increment or decrement operators. Require an lvalue. If the operator is on the left side, it is a pre-inc/dec; on the right side, a post-inc/dec. May not work on floats, may work on pointers. A pre-inc/dec adds or subtracts 1, with pointer arithmetic, to value in lvalue, storing it, and the resulting value is the stored value. Post-inc/dec is the same, but the resulting value is the value stored in the lvalue BEFORE the increment/decrement.
