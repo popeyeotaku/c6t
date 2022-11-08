@@ -9,3 +9,7 @@ codegen for, and is much closer to assembly.
 
 To account for differing platforms, this C6T specific version defines an
 int as a 16bit little-endian 2's complement number with no alignment.
+Platforms with individual requirements outside of these are expected to
+virtualize their environment, if not simulate it entirely.
+
+See doc/grammar.md for details.
