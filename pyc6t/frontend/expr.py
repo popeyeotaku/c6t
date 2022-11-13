@@ -28,6 +28,9 @@ class Node:
     children: tuple[Node, ...] = ()
     value: typing.Hashable = None
 
+    def __post_init__(self) -> None:
+        assert isinstance(self.label, NLab)
+
     @typing.overload
     def __getitem__(self, i: slice) -> tuple[Node, ...]:
         ...
@@ -115,9 +118,9 @@ def build(state: ParseState, label: NLab | None, *childargs: Node) -> Node:
         for i, child in enumerate(children[1:]):
             children[i + 1] = fixfunc(fixarray(child))
     if children:
-        if label != NLab.ADDR:
+        if label is not None and label != NLab.ADDR:
             children[0] = fixarray(children[0])
-            if label not in opinfo.CALL:
+            if label is not None and label not in opinfo.CALL:
                 children[0] = fixfunc(children[0])
 
     if label is None:
@@ -138,7 +141,7 @@ def build(state: ParseState, label: NLab | None, *childargs: Node) -> Node:
     match label:
         case NLab.COND:
             assert left and right
-            if right.label != "colon":
+            if right.label != NLab.COLON:
                 state.error("bad conditional operator")
             return Node(label, right.typestr, tuple(children))
         case NLab.COMMA | NLab.ARG | NLab.LOGAND | NLab.LOGOR:
@@ -176,9 +179,9 @@ def build(state: ParseState, label: NLab | None, *childargs: Node) -> Node:
             state.error("expected an lval")
     if label in opinfo.UNARY:
         assert left is not None and right is None
-        if label == "toflt":
+        if label == NLab.TOFLT:
             typestr = TypeString(Type.DOUBLE)
-        elif label == "toint":
+        elif label == NLab.TOINT:
             typestr = TypeString(Type.INT)
         else:
             typestr = left.typestr
@@ -282,36 +285,36 @@ def fold(node: Node) -> Node:
     """
     cons: list[int] = []
     for child in node.children:
-        if child.label != "con":
+        if child.label != NLab.CON:
             return node
         assert isinstance(child.value, int)
         cons.append(child.value)
     match node.label:
-        case "add":
+        case NLab.ADD:
             result = con(sum(cons))
-        case "sub":
+        case NLab.SUB:
             result = con(cons[0] - cons[1])
-        case "mult":
+        case NLab.MULT:
             result = con(cons[0] * cons[1])
-        case "div":
+        case NLab.DIV:
             result = con(cons[0] // cons[1])
-        case "mod":
+        case NLab.MOD:
             result = con(cons[0] % cons[1])
-        case "and":
+        case NLab.AND:
             result = con(cons[0] & cons[1])
-        case "or":
+        case NLab.OR:
             result = con(cons[0] | cons[1])
-        case "eor":
+        case NLab.EOR:
             result = con(cons[0] ^ cons[1])
-        case "lshift":
+        case NLab.LSHIFT:
             result = con(cons[0] << cons[1])
-        case "rshift":
+        case NLab.RSHIFT:
             if cons[0] & 0x8000:
                 cons[0] = -((cons[0] ^ 0xFFFF) + 1)  # Force sign extension
             result = con(cons[0] >> cons[1])
-        case "neg":
+        case NLab.NEG:
             result = con(-cons[0])
-        case "compl":
+        case NLab.COMPL:
             result = con(cons[0] ^ 0xFFFF)
         case _:
             return node

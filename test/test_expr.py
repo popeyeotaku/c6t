@@ -6,12 +6,13 @@ import unittest
 from pyc6t.frontend import extdef
 from pyc6t.frontend.c6tstate import ParseState
 from pyc6t.frontend.expr import Node, expression
+from pyc6t.frontend.nlab import NLab
 from pyc6t.frontend.outexpr import outexpr
 from pyc6t.frontend.symtab import FrozenSym, Storage, Symbol
 from pyc6t.frontend.type6 import Type, TypeString
 
 
-def inode(label: str, *children: Node, value: typing.Any = None) -> Node:
+def inode(label: NLab, *children: Node, value: typing.Any = None) -> Node:
     """Construct a node with type int."""
     return Node(label, TypeString(Type.INT), tuple(children), value)
 
@@ -44,10 +45,10 @@ class TestExpr(unittest.TestCase):
             "foo(bar)",
             "float bar;",
             "{",
-            "static a, *b;",
-            "static double x, *y;",
-            "static float z;",
-            "z = a = *b = x = *y = bar;",
+            "static i, *pi;",
+            "static double d, *pd;",
+            "static float f;",
+            "f = i = *pi = d = *pd = bar;",
             "}",
         ]
         response = [
@@ -122,7 +123,7 @@ class TestExpr(unittest.TestCase):
 
     def test_rshift(self):
         """Test rshifts are working properly, with sign extension."""
-        self.dotest("(-10)>>3", inode("con", value=0xFFFE))
+        self.dotest("(-10)>>3", inode(NLab.CON, value=0xFFFE))
 
     def parse(self, source: str):
         """Parse a C expression source."""
@@ -149,19 +150,19 @@ class TestExpr(unittest.TestCase):
             Symbol(Storage.EXTERN, "foo", TypeString(Type.FUNC, Type.INT), local=True),
         )
         namenode = Node(
-            "name", TypeString(Type.FUNC, Type.INT), value=FrozenSym.fromsym(symbol)
+            NLab.NAME, TypeString(Type.FUNC, Type.INT), value=FrozenSym.fromsym(symbol)
         )
         other = inode(
-            "call",
+            NLab.CALL,
             namenode,
             Node(
-                "arg",
+                NLab.ARG,
                 TypeString(Type.INT),
                 (
                     Node(
-                        "addr", TypeString(Type.POINT, Type.FUNC, Type.INT), (namenode,)
+                        NLab.ADDR, TypeString(Type.POINT, Type.FUNC, Type.INT), (namenode,)
                     ),
-                    Node("nop", TypeString(Type.INT)),
+                    Node(NLab.NOP, TypeString(Type.INT)),
                 ),
             ),
         )

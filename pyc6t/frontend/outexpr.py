@@ -12,7 +12,12 @@ from .type6 import Type, TypeString
 
 TypeChar = Literal["", "c", "f", "d"]
 
-NO_OPCODE = {NLab.ADDR, NLab.DEREF}
+CNVLAB: dict[NLab, NLab | None] = {
+    NLab.ADDR: None,
+    NLab.DEREF: None,
+    NLab.DOT: NLab.ADD,
+    NLab.ARROW: NLab.ADD,
+}
 
 
 def outexpr(state: ParseState, node: Node) -> None:
@@ -32,15 +37,17 @@ def asmexpr(state: ParseState, node: Node) -> None:
         for child in node[1:]:
             asmexpr(state, child)
             rval(state, child)
-    if node.label in NO_OPCODE:
+    if node.label in CNVLAB:
+        label = CNVLAB[node.label]
+    else:
+        label = node.label
+    if label is None:
         return
-    opcode = node.label.opcode
-    if node.label not in opinfo.NOFLTOP and any(
+    opcode = label.opcode
+    if label not in opinfo.NOFLTOP and any(
         (node.typestr.floating) for node in [node] + list(node.children)
     ):
-        if (
-            node.label == NLab.COMMA and node[0].typestr.floating
-        ) or node.label == NLab.ARG:
+        if (label == NLab.COMMA and node[0].typestr.floating) or label == NLab.ARG:
             pass
         else:
             opcode = "f" + opcode
@@ -73,19 +80,19 @@ def typechar(typestr: TypeString) -> TypeChar:
 
 def con0(node: Node) -> bool:
     """Return a flag for if the node is constant zero."""
-    return node.label == "con" and node.value == 0
+    return node.label == NLab.CON and node.value == 0
 
 
 def special(state: ParseState, node: Node) -> bool:
     """Check if a node is special cased for assembly - if so, assmble it and
     return True. Else, do nothing and return False.
     """
-    if node.label in ("dot", "add", "arrow", "sub") and con0(node[1]):
+    if node.label in (NLab.DOT, NLab.ARROW, NLab.SUB, NLab.ADD) and con0(node[1]):
         asmexpr(state, node[0])
-        if node.label != "dot":
+        if node.label != NLab.DOT:
             rval(state, node[0])
         return True
-    if node.label == "add" and con0(node[0]):
+    if node.label == NLab.ADD and con0(node[0]):
         asmexpr(state, node[1])
         rval(state, node[1])
         return True

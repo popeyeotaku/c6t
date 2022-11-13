@@ -67,6 +67,14 @@ class NLab(Enum):
     RSHIFT = auto()
     MOD = auto()
 
+    def __eq__(self, __o: object) -> bool:
+        if not isinstance(__o, NLab):
+            raise TypeError(__o)
+        return super().__eq__(__o)
+
+    def __hash__(self) -> int:
+        return super().__hash__()
+
     @property
     def opcode(self) -> str:
         """The IR opcode representation of the node label."""
@@ -80,4 +88,4 @@ UCMP = {
     NLab.LEQU: NLab.ULEQU,
 }
 
-ASSIGNS = {key: value.upper() for key, value in lexer.ASSIGNS.items()}
+ASSIGNS = {key: NLab[value.upper()] for key, value in lexer.ASSIGNS.items()}
