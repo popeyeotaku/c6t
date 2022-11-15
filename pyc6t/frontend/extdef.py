@@ -12,6 +12,8 @@ gets passed a callback function for different situations.
 import math
 from typing import Callable, Literal
 
+from pyc6t.frontend.nlab import NLab
+
 from . import expr, statement
 from .c6tstate import MAXREGS, ParseState
 from .expr import conexpr
@@ -178,24 +180,24 @@ def dataexpr(state: ParseState) -> tuple[str | None, int | float]:
         return None, con
     if (name := dataname(node)) is not None:
         return name, 0
-    if node.label == "add":
+    if node.label == NLab.ADD:
         name, con = dataname(node[0]), datacon(node[1])
         if name is None or not isinstance(con, int):
             con, name = datacon(node[0]), dataname(node[1])
         if name is None or not isinstance(con, int):
             raise ValueError(node)
         return name, con
-    if node.label == "sub":
+    if node.label == NLab.SUB:
         name, con = dataname(node[0]), datacon(node[1])
         if name is None or not isinstance(con, int):
             raise ValueError(node)
         # pylint:disable=invalid-unary-operand-type
         return name, -con
-    if node.label == "addr" and node[0].label == "dot":
-        assert node[0][0].label == "name"
+    if node.label == NLab.ADDR and node[0].label == NLab.DOT:
+        assert node[0][0].label == NLab.NAME
         assert isinstance(node[0][0].value, SymTypeTuple)
         assert isinstance(node[0][0].value.offset, str)
-        assert node[0][1].label == "con"
+        assert node[0][1].label == NLab.CON
         assert isinstance(node[0][1].value, int)
         return node[0][0].value.offset, node[0][1].value
     raise ValueError(node)
@@ -205,7 +207,7 @@ def datacon(node: expr.Node) -> int | float | None:
     """Return if the node is a valid data initializer constant (con or fcon),
     returning its value if so or None if not.
     """
-    if node.label in ("con", "fcon"):
+    if node.label in (NLab.CON, NLab.FCON):
         assert isinstance(node.value, (int, float))
         return node.value
     return None
@@ -215,7 +217,7 @@ def dataname(node: expr.Node) -> str | None:
     """Checks if the node is a valid data initializer NAME
     (addr -> name node). If so, return the node name. Else, return None.
     """
-    if node.label == "addr" and node[0].label == "name":
+    if node.label == NLab.ADDR and node[0].label == NLab.NAME:
         assert isinstance(node[0].value, SymTypeTuple)
         assert isinstance(node[0].value.offset, str)
         return node[0].value.offset

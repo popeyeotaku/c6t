@@ -5,3 +5,5 @@ lint.bat
 .VSCodeCounter/**
 python/test_main.ir
 **/.mypy_cache/*
+test/test_main.o
+test/test_main.s

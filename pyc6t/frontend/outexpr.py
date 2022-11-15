@@ -2,7 +2,9 @@
 
 from typing import Literal
 
-from . import lexer, opinfo, util
+from pyc6t.frontend.nlab import NLab
+
+from . import opinfo, util
 from .c6tstate import ParseState
 from .expr import Node
 from .symtab import FrozenSym, Storage
@@ -10,42 +12,12 @@ from .type6 import Type, TypeString
 
 TypeChar = Literal["", "c", "f", "d"]
 
-OPCODES: dict[str, str] = {
-    "neg": "neg",
-    "not": "lognot",
-    "mult": "mult",
-    "div": "div",
-    "mod": "mod",
-    "add": "add",
-    "sub": "sub",
-    "rshift": "rshift",
-    "lshift": "lshift",
-    "less": "less",
-    "great": "great",
-    "lequ": "lequ",
-    "gequ": "gequ",
-    "uless": "uless",
-    "ugreat": "ugreat",
-    "ulequ": "ulequ",
-    "ugequ": "ugequ",
-    "equ": "equ",
-    "nequ": "nequ",
-    "and": "and",
-    "or": "or",
-    "eor": "eor",
-    "logand": "logand",
-    "logor": "logor",
-    "comma": "comma",
-    "dot": "add",
-    "arrow": "add",
-    "addr": "",
-    "deref": "",
-    "toint": "toint",
-    "toflt": "toflt",
-    "arg": "arg",
-    "nop": "nop",
+CNVLAB: dict[NLab, NLab | None] = {
+    NLab.ADDR: None,
+    NLab.DEREF: None,
+    NLab.DOT: NLab.ADD,
+    NLab.ARROW: NLab.ADD,
 }
-OPCODES.update({assign: assign for assign in lexer.ASSIGNS.values()})
 
 
 def outexpr(state: ParseState, node: Node) -> None:
@@ -65,15 +37,17 @@ def asmexpr(state: ParseState, node: Node) -> None:
         for child in node[1:]:
             asmexpr(state, child)
             rval(state, child)
-    if node.label not in OPCODES:
-        raise ValueError(node.label)
-    opcode = OPCODES[node.label]
-    if not opcode:
+    if node.label in CNVLAB:
+        label = CNVLAB[node.label]
+    else:
+        label = node.label
+    if label is None:
         return
-    if opcode not in opinfo.NOFLTOP and any(
+    opcode = label.opcode
+    if label not in opinfo.NOFLTOP and any(
         (node.typestr.floating) for node in [node] + list(node.children)
     ):
-        if (opcode == "comma" and node[0].typestr.floating) or opcode == "arg":
+        if (label == NLab.COMMA and node[0].typestr.floating) or label == NLab.ARG:
             pass
         else:
             opcode = "f" + opcode
@@ -106,41 +80,41 @@ def typechar(typestr: TypeString) -> TypeChar:
 
 def con0(node: Node) -> bool:
     """Return a flag for if the node is constant zero."""
-    return node.label == "con" and node.value == 0
+    return node.label == NLab.CON and node.value == 0
 
 
 def special(state: ParseState, node: Node) -> bool:
     """Check if a node is special cased for assembly - if so, assmble it and
     return True. Else, do nothing and return False.
     """
-    if node.label in ("dot", "add", "arrow", "sub") and con0(node[1]):
+    if node.label in (NLab.DOT, NLab.ARROW, NLab.SUB, NLab.ADD) and con0(node[1]):
         asmexpr(state, node[0])
-        if node.label != "dot":
+        if node.label != NLab.DOT:
             rval(state, node[0])
         return True
-    if node.label == "add" and con0(node[0]):
+    if node.label == NLab.ADD and con0(node[0]):
         asmexpr(state, node[1])
         rval(state, node[1])
         return True
     if node.label in opinfo.ASSIGNS:
-        opcode = typechar(node[0].typestr) + node.label
+        opcode = typechar(node[0].typestr) + node.label.opcode
         asmexpr(state, node[0])
         asmexpr(state, node[1])
         rval(state, node[1])
         state.asm(opcode)
         return True
     match node.label:
-        case "nop":
+        case NLab.NOP:
             state.asm("null")
             return True
-        case "addr":
+        case NLab.ADDR:
             asmexpr(state, node[0])
-        case "cond":
+        case NLab.COND:
             for child in (node[0], node[1][0], node[1][1]):
                 asmexpr(state, child)
                 rval(state, child)
             state.asm("cond")
-        case "string":
+        case NLab.STRING:
             assert isinstance(node.value, bytes)
             oldseg = state.goseg("string")
             static = state.static()
@@ -148,7 +122,7 @@ def special(state: ParseState, node: Node) -> bool:
             state.pseudo("db", *(str(char) for char in node.value))
             state.goseg(oldseg)
             state.asm("name", f"L{static}")
-        case "name":
+        case NLab.NAME:
             assert isinstance(node.value, FrozenSym)
             symbol: FrozenSym = node.value
             match symbol.storage:
@@ -163,26 +137,26 @@ def special(state: ParseState, node: Node) -> bool:
                     state.asm("reg", str(symbol.offset))
                 case _:
                     raise ValueError(node, symbol)
-        case "con":
+        case NLab.CON:
             state.asm("con", str(node.value))
-        case "fcon":
+        case NLab.FCON:
             state.asm("fcon", str(node.value))
-        case "ucall":
+        case NLab.UCALL:
             asmexpr(state, node[0])
             state.asm("ucall")
-        case "call":
+        case NLab.CALL:
             asmexpr(state, node[0])
             asmexpr(state, node[1])
             rval(state, node[1])
             state.asm("call")
-        case "preinc" | "predec" | "postinc" | "postdec":
+        case NLab.PREINC | NLab.POSTINC | NLab.PREDEC | NLab.POSTDEC:
             asmexpr(state, node[0])
             if node[0].typestr.pointer:
                 size = node[0].typestr.sizenext()
             else:
                 size = 1
             state.asm("con", str(size))
-            state.asm(node.label)
+            state.asm(node.label.opcode)
         case _:
             return False
     return True

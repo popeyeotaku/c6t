@@ -12,8 +12,9 @@ from __future__ import annotations
 import dataclasses
 import typing
 
-from . import lexer, opinfo, util
+from . import lexer, nlab, opinfo, util
 from .c6tstate import ParseState
+from .nlab import UCMP, NLab
 from .symtab import FrozenSym, Storage, Symbol
 from .type6 import Type, TypeElem, TypeString
 
@@ -22,10 +23,13 @@ from .type6 import Type, TypeElem, TypeString
 class Node:
     """An expression node."""
 
-    label: str
+    label: NLab
     typestr: TypeString
     children: tuple[Node, ...] = ()
     value: typing.Hashable = None
+
+    def __post_init__(self) -> None:
+        assert isinstance(self.label, NLab)
 
     @typing.overload
     def __getitem__(self, i: slice) -> tuple[Node, ...]:
@@ -42,7 +46,7 @@ class Node:
         return iter(self.children)
 
     def copy(
-        self, *, label: str | None = None, typestr: TypeString | None = None
+        self, *, label: NLab | None = None, typestr: TypeString | None = None
     ) -> Node:
         """Return a shallow copy of the node, optionally with a new label or
         type string.
@@ -88,38 +92,38 @@ def expression(
         node = expr15(state)
     else:
         node = expr14(state)
-    node = build(state, "", node)  # Flush final conversions
+    node = build(state, None, node)  # Flush final conversions
     if post_to_pre:
-        if node.label == "postinc":
-            node = node.copy(label="preinc")
-        elif node.label == "postdec":
-            node = node.copy(label="predec")
+        if node.label == NLab.POSTINC:
+            node = node.copy(label=NLab.PREINC)
+        elif node.label == NLab.POSTDEC:
+            node = node.copy(label=NLab.PREDEC)
     return node
 
 
 def conexpr(state: ParseState, *, seecommas: bool = True) -> int:
     """Parse a constant expression."""
     node = expression(state, seecommas=seecommas)
-    if node.label != "con":
+    if node.label != NLab.CON:
         state.error("expected constant expression")
         return 1  # Good default for arrays
     assert isinstance(node.value, int)
     return node.value
 
 
-def build(state: ParseState, label: str, *childargs: Node) -> Node:
+def build(state: ParseState, label: NLab | None, *childargs: Node) -> Node:
     """Construct a non-leaf node with type conversions."""
     children: list[Node] = list(childargs)
     if len(children) > 1:
         for i, child in enumerate(children[1:]):
             children[i + 1] = fixfunc(fixarray(child))
     if children:
-        if label != "addr":
+        if label is None or label != NLab.ADDR:
             children[0] = fixarray(children[0])
-            if label not in opinfo.CALL:
+            if label is None or label not in opinfo.CALL:
                 children[0] = fixfunc(children[0])
 
-    if label == "":
+    if label is None:
         return children[0]
 
     typestr = TypeString(Type.INT)
@@ -135,14 +139,14 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
 
     # Special cases
     match label:
-        case "cond":
+        case NLab.COND:
             assert left and right
-            if right.label != "colon":
+            if right.label != NLab.COLON:
                 state.error("bad conditional operator")
             return Node(label, right.typestr, tuple(children))
-        case "comma" | "arg" | "logand" | "logor":
+        case NLab.COMMA | NLab.ARG | NLab.LOGAND | NLab.LOGOR:
             return Node(label, typestr, tuple(children))
-        case "call" | "ucall":
+        case NLab.CALL | NLab.UCALL:
             assert left is not None
             typestr = left.typestr
             if left.typestr[0].label != Type.FUNC:
@@ -150,17 +154,17 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
             else:
                 typestr = left.typestr.pop()
             return Node(label, typestr, tuple(children))
-        case "deref":
+        case NLab.DEREF:
             assert left is not None
-            if left.label == "addr":
+            if left.label == NLab.ADDR:
                 # pylint:disable=unsubscriptable-object
                 return left[0]
             if not left.typestr.pointer:
                 state.error("deref of non-pointer")
             return Node(label, left.typestr.pop(), tuple(children))
-        case "addr":
+        case NLab.ADDR:
             assert left is not None
-            if left.label == "deref":
+            if left.label == NLab.DEREF:
                 # pylint:disable=unsubscriptable-object
                 node = left[0].copy(typestr=TypeString(Type.POINT, *left[0].typestr))
                 return node
@@ -175,9 +179,9 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
             state.error("expected an lval")
     if label in opinfo.UNARY:
         assert left is not None and right is None
-        if label == "toflt":
+        if label == NLab.TOFLT:
             typestr = TypeString(Type.DOUBLE)
-        elif label == "toint":
+        elif label == NLab.TOINT:
             typestr = TypeString(Type.INT)
         else:
             typestr = left.typestr
@@ -196,17 +200,17 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
         if left.typestr.pointer and right.typestr.floating:
             state.error("cannot assign float to a pointer type")
         if left.typestr.floating and not right.typestr.floating:
-            right = build(state, "toflt", right)
+            right = build(state, NLab.TOFLT, right)
         elif right.typestr.floating and not left.typestr.floating:
-            right = build(state, "toint", right)
-        elif left.typestr.pointer and label != "assign":
-            right = build(state, "mult", right, con(left.typestr.sizenext()))
+            right = build(state, NLab.TOINT, right)
+        elif left.typestr.pointer and label != NLab.ASSIGN:
+            right = build(state, NLab.MULT, right, con(left.typestr.sizenext()))
         return Node(label, right.typestr, (left, right))
-    if label == "colon" and left.typestr.pointer and left.typestr == right.typestr:
+    if label == NLab.COLON and left.typestr.pointer and left.typestr == right.typestr:
         conversion = None
     elif label in opinfo.CMP:
         if label in opinfo.LESSGREAT and conversion == Type.POINT:
-            label = "u" + label
+            label = UCMP[label]
         if conversion == Type.POINT:
             conversion = None
     match conversion:
@@ -214,22 +218,22 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
             pass
         case Type.INT:
             if left.typestr.floating:
-                left = build(state, "toint", left)
+                left = build(state, NLab.TOINT, left)
             if right.typestr.floating:
-                right = build(state, "toint", right)
+                right = build(state, NLab.TOINT, right)
         case Type.POINT:
-            if label == "sub" and left.typestr == right.typestr:
+            if label == NLab.SUB and left.typestr == right.typestr:
                 sizeleft, sizeright = (
                     (node.typestr.sizenext() if node.typestr.pointer else 1)
                     for node in (left, right)
                 )
                 size = max(sizeleft, sizeright)
-                subbed = fold(Node("sub", TypeString(Type.INT), (left, right)))
+                subbed = fold(Node(NLab.SUB, TypeString(Type.INT), (left, right)))
                 if size == 1:
                     return subbed
                 return fold(
                     Node(
-                        "div",
+                        NLab.DIV,
                         TypeString(Type.INT),
                         (
                             subbed,
@@ -241,18 +245,18 @@ def build(state: ParseState, label: str, *childargs: Node) -> Node:
                 typestr = left.typestr
                 sizenext = typestr.sizenext()
                 if sizenext != 1:
-                    right = build(state, "mult", right, con(sizenext))
+                    right = build(state, NLab.MULT, right, con(sizenext))
             else:
                 typestr = right.typestr
                 sizenext = typestr.sizenext()
                 if sizenext != 1:
-                    left = build(state, "mult", left, con(sizenext))
+                    left = build(state, NLab.MULT, left, con(sizenext))
         case Type.FLOAT:
             typestr = TypeString(Type.DOUBLE)
             if not left.typestr.floating:
-                left = build(state, "toflt", left)
+                left = build(state, NLab.TOFLT, left)
             elif not right.typestr.floating:
-                right = build(state, "toflt", right)
+                right = build(state, NLab.TOFLT, right)
         case _:
             raise ValueError(conversion)
     if label in opinfo.ISINT:
@@ -281,36 +285,36 @@ def fold(node: Node) -> Node:
     """
     cons: list[int] = []
     for child in node.children:
-        if child.label != "con":
+        if child.label != NLab.CON:
             return node
         assert isinstance(child.value, int)
         cons.append(child.value)
     match node.label:
-        case "add":
+        case NLab.ADD:
             result = con(sum(cons))
-        case "sub":
+        case NLab.SUB:
             result = con(cons[0] - cons[1])
-        case "mult":
+        case NLab.MULT:
             result = con(cons[0] * cons[1])
-        case "div":
+        case NLab.DIV:
             result = con(cons[0] // cons[1])
-        case "mod":
+        case NLab.MOD:
             result = con(cons[0] % cons[1])
-        case "and":
+        case NLab.AND:
             result = con(cons[0] & cons[1])
-        case "or":
+        case NLab.OR:
             result = con(cons[0] | cons[1])
-        case "eor":
+        case NLab.EOR:
             result = con(cons[0] ^ cons[1])
-        case "lshift":
+        case NLab.LSHIFT:
             result = con(cons[0] << cons[1])
-        case "rshift":
+        case NLab.RSHIFT:
             if cons[0] & 0x8000:
                 cons[0] = -((cons[0] ^ 0xFFFF) + 1)  # Force sign extension
             result = con(cons[0] >> cons[1])
-        case "neg":
+        case NLab.NEG:
             result = con(-cons[0])
-        case "compl":
+        case NLab.COMPL:
             result = con(cons[0] ^ 0xFFFF)
         case _:
             return node
@@ -321,15 +325,15 @@ def fixarray(node: Node) -> Node:
     """If the node is array type and fits other qualifications, return an
     'addr' node to it of type pointer to its subtype.
     """
-    if node.label != "addr" and node.typestr[0].label == Type.ARRAY:
-        node = Node("addr", TypeString(Type.POINT, *node.typestr.pop()), (node,))
+    if node.label != NLab.ADDR and node.typestr[0].label == Type.ARRAY:
+        node = Node(NLab.ADDR, TypeString(Type.POINT, *node.typestr.pop()), (node,))
     return node
 
 
 def fixfunc(node: Node) -> Node:
     """Alter a reference to a function to a pointer to it."""
     if node.label not in opinfo.CALL and node.typestr[0].label == Type.FUNC:
-        node = Node("addr", TypeString(Type.POINT, *node.typestr), (node,))
+        node = Node(NLab.ADDR, TypeString(Type.POINT, *node.typestr), (node,))
     return node
 
 
@@ -378,16 +382,18 @@ def domember(state: ParseState, node: Node, name: str, operator: str) -> Node:
             typestr = symbol.typestr
     if operator == "." and node.label not in opinfo.ISLVAL:
         state.error("missing required lval")
-    return Node("dot" if operator == "." else "arrow", typestr, (node, con(offset)))
+    return Node(
+        NLab.DOT if operator == "." else NLab.ARROW, typestr, (node, con(offset))
+    )
 
 
 def con(i: int) -> Node:
     """Return a constant integer node."""
-    return Node("con", TypeString(Type.INT), value=util.word(i))
+    return Node(NLab.CON, TypeString(Type.INT), value=util.word(i))
 
 
 def binary(
-    subparser: typing.Callable[[ParseState], Node], labels: dict[str, str]
+    subparser: typing.Callable[[ParseState], Node], labels: dict[str, NLab]
 ) -> typing.Callable[[ParseState], Node]:
     """Create a usual left-associative binary operator parser."""
 
@@ -406,14 +412,14 @@ def expr1(state: ParseState) -> Node:
         match tkn.label:
             case "name":
                 symbol = getsym(state, tkn.value)
-                node = Node("name", symbol.typestr, value=FrozenSym.fromsym(symbol))
+                node = Node(NLab.NAME, symbol.typestr, value=FrozenSym.fromsym(symbol))
             case "con":
                 node = con(tkn.value)
             case "fcon":
-                node = Node("fcon", TypeString(Type.DOUBLE), value=tkn.value)
+                node = Node(NLab.FCON, TypeString(Type.DOUBLE), value=tkn.value)
             case "string":
                 node = Node(
-                    "string",
+                    NLab.STRING,
                     TypeString(TypeElem(Type.ARRAY, len(tkn.value)), Type.CHAR),
                     value=tkn.value,
                 )
@@ -430,19 +436,19 @@ def expr1(state: ParseState) -> Node:
             case "[":
                 right = expr15(state)
                 state.need("]")
-                node = build(state, "deref", build(state, "add", node, right))
+                node = build(state, NLab.DEREF, build(state, NLab.ADD, node, right))
             case "(":
                 if state.match(")"):
-                    node = build(state, "ucall", node)
+                    node = build(state, NLab.UCALL, node)
                 else:
-                    args: Node = Node("nop", TypeString(Type.INT))
+                    args: Node = Node(NLab.NOP, TypeString(Type.INT))
                     while not state.match(")"):
                         state.earlyeof()
-                        args = build(state, "arg", expr14(state), args)
+                        args = build(state, NLab.ARG, expr14(state), args)
                         if not state.peekmatch(")"):
                             state.need(",")
-                    args = build(state, "", args)
-                    node = build(state, "call", node, args)
+                    args = build(state, None, args)
+                    node = build(state, NLab.CALL, node, args)
             case "." | "->":
                 name = state.need("name")
                 if name is not None:
@@ -457,19 +463,19 @@ def expr2(state: ParseState) -> Node:
     if tkn := state.match("*", "&", "-", "!", "++", "--", "sizeof", "~"):
         match tkn.label:
             case "~":
-                node = build(state, "compl", expr2(state))
+                node = build(state, NLab.COMPL, expr2(state))
             case "*":
-                node = build(state, "deref", expr2(state))
+                node = build(state, NLab.DEREF, expr2(state))
             case "&":
-                node = build(state, "addr", expr2(state))
+                node = build(state, NLab.ADDR, expr2(state))
             case "-":
-                node = build(state, "neg", expr2(state))
+                node = build(state, NLab.NEG, expr2(state))
             case "!":
-                node = build(state, "not", expr2(state))
+                node = build(state, NLab.NOT, expr2(state))
             case "++":
-                node = build(state, "preinc", expr2(state))
+                node = build(state, NLab.PREINC, expr2(state))
             case "--":
-                node = build(state, "predec", expr2(state))
+                node = build(state, NLab.PREDEC, expr2(state))
             case "sizeof":
                 node = con(expr2(state).typestr.size)
             case _:
@@ -477,21 +483,23 @@ def expr2(state: ParseState) -> Node:
     else:
         node = expr1(state)
     while tkn := state.match("++", "--"):
-        label = "postinc" if tkn.label == "++" else "postdec"
+        label = NLab.POSTINC if tkn.label == "++" else NLab.POSTDEC
         node = build(state, label, node)
     return node
 
 
-expr3 = binary(expr2, {"*": "mult", "/": "div", "%": "mod"})
-expr4 = binary(expr3, {"+": "add", "-": "sub"})
-expr5 = binary(expr4, {">>": "rshift", "<<": "lshift"})
-expr6 = binary(expr5, {"<": "less", ">": "great", "<=": "lequ", ">=": "gequ"})
-expr7 = binary(expr6, {"==": "equ", "!=": "nequ"})
-expr8 = binary(expr7, {"&": "and"})
-expr9 = binary(expr8, {"^": "eor"})
-expr10 = binary(expr9, {"|": "or"})
-expr11 = binary(expr10, {"&&": "logand"})
-expr12 = binary(expr11, {"||": "logor"})
+expr3 = binary(expr2, {"*": NLab.MULT, "/": NLab.DIV, "%": NLab.MOD})
+expr4 = binary(expr3, {"+": NLab.ADD, "-": NLab.SUB})
+expr5 = binary(expr4, {">>": NLab.RSHIFT, "<<": NLab.LSHIFT})
+expr6 = binary(
+    expr5, {"<": NLab.LESS, ">": NLab.GREAT, "<=": NLab.LEQU, ">=": NLab.GEQU}
+)
+expr7 = binary(expr6, {"==": NLab.EQU, "!=": NLab.NEQU})
+expr8 = binary(expr7, {"&": NLab.AND})
+expr9 = binary(expr8, {"^": NLab.EOR})
+expr10 = binary(expr9, {"|": NLab.OR})
+expr11 = binary(expr10, {"&&": NLab.LOGAND})
+expr12 = binary(expr11, {"||": NLab.LOGOR})
 
 
 def expr13(state: ParseState) -> Node:
@@ -501,7 +509,7 @@ def expr13(state: ParseState) -> Node:
         left = expr12(state)
         state.need(":")
         right = expr12(state)
-        node = build(state, "cond", node, build(state, "colon", left, right))
+        node = build(state, NLab.COND, node, build(state, NLab.COLON, left, right))
     return node
 
 
@@ -509,8 +517,8 @@ def expr14(state: ParseState) -> Node:
     """Handle assignment operators."""
     node = expr13(state)
     while tkn := state.match(*lexer.ASSIGNS.keys()):
-        node = build(state, lexer.ASSIGNS[tkn.label], node, expr14(state))
+        node = build(state, nlab.ASSIGNS[tkn.label], node, expr14(state))
     return node
 
 
-expr15 = binary(expr14, {",": "comma"})
+expr15 = binary(expr14, {",": NLab.COMMA})
