@@ -118,9 +118,9 @@ def build(state: ParseState, label: NLab | None, *childargs: Node) -> Node:
         for i, child in enumerate(children[1:]):
             children[i + 1] = fixfunc(fixarray(child))
     if children:
-        if label is not None and label != NLab.ADDR:
+        if label is None or label != NLab.ADDR:
             children[0] = fixarray(children[0])
-            if label is not None and label not in opinfo.CALL:
+            if label is None or label not in opinfo.CALL:
                 children[0] = fixfunc(children[0])
 
     if label is None:
