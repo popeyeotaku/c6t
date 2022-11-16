@@ -4,12 +4,12 @@ import argparse
 import sys
 from pathlib import Path, PurePosixPath
 
-from ..backend import vm
+from ..backend import vm, i8080
 from ..vm import vm_asm
 from . import preproc
 from .frontend import compile_c6t
 
-BACKENDS = {"vm": (vm.BackendVM, vm_asm.Assembler)}
+BACKENDS = {"vm": (vm.BackendVM, vm_asm.Assembler), '8080': (i8080.BackendFile, None)}
 
 parser = argparse.ArgumentParser(description="Frontend for the C6T compiler")
 parser.add_argument(
@@ -74,6 +74,8 @@ def main(argv: list[str]):
         if args.outasm:
             srcpath.with_suffix(".s").write_text(asmsrc, "ascii")
             continue
+        if backasm is None:
+            return
         assembler = backasm(asmsrc + append)
         binary = assembler.assemble()
         if args.symtab:

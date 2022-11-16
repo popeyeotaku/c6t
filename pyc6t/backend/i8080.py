@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from enum import IntEnum, auto
 from functools import cached_property, lru_cache
 from pathlib import Path
+import re
 from typing import Any, Callable, Iterator, Type
 
 from . import shared
@@ -91,15 +92,15 @@ class Node80:
                 children = [Node80("sub", children[0], children[1])]
                 label = "lognot" if label == "equ" else "log"
             case _:
-                raise NotImplementedError
+                pass
         return Node80(label, children[0], children[1], value)
 
 
 class Cost(IntEnum):
     """The cost class of a codegen template."""
 
-    HL = 1
-    ANY = 2
+    ANY = 1
+    HL = 2
     BINARY = 3
     SPECIAL = 4
 
@@ -178,7 +179,7 @@ class Template:
     @lru_cache
     def match(self, node: Node80) -> bool:
         """Return a flag for if the node can match this specification."""
-        if self.node != node:
+        if not self.node.match(node):
             return False
         if self.commutative:
             flipped = self._matchspec((self.left, self.right), (node.right, node.left))
@@ -287,9 +288,7 @@ class TemplateCollection:
         Returns:
             Template: The template found.
         """
-        templates = self._select(
-            lambda t: t.label == node.label and t.cost == cost and t.match(node)
-        )
+        templates = self._select(lambda t: t.cost == cost and t.match(node))
         try:
             return templates[0]
         except IndexError as error:
@@ -314,15 +313,15 @@ class TemplateCollection:
             Template: The matched template.
         """
         if reg == Reg.DE:
-            costs = (Cost.ANY, Cost.HL, Cost.BINARY, Cost.SPECIAL)
-        else:
-            costs = (Cost.HL, Cost.ANY, Cost.BINARY, Cost.SPECIAL)
-        for cost in costs:
             try:
-                return self._match_cost(node, cost)
+                return self._match_cost(node, Cost.ANY)
             except ValueError:
-                continue
-        raise ValueError(f"no matching template on node {repr(node)}")
+                pass
+        templates = self._select(lambda t: t.match(node))
+        try:
+            return templates[0]
+        except IndexError as error:
+            raise ValueError(f"no matching template on node {node}") from error
 
     @lru_cache
     def cost(self, node: Node80, reg: Reg = Reg.HL) -> Cost:
@@ -339,9 +338,8 @@ class TemplateCollection:
             Cost: The maximum of all ocsts.
         """
         template = self.match(node, reg)
-        return max(
-            template.cost, *(self.cost(child, reg) for child in template.children(node))
-        )
+        children = [self.cost(child, reg) for child in template.children(node)]
+        return max([template.cost] + children)
 
     def __eq__(self, __o: object) -> bool:
         if isinstance(__o, TemplateCollection):
@@ -357,7 +355,10 @@ class TemplateCollection:
         lines = source.splitlines(keepends=False)
         templates: list[Template] = []
         for i in range(0, len(lines), cls.TEMPLATE_LINES + 1):
-            templates.append(Template.fromstr(lines[i : i + cls.TEMPLATE_LINES]))
+            chunk = lines[i : i + cls.TEMPLATE_LINES]
+            if len(chunk) != cls.TEMPLATE_LINES:
+                break
+            templates.append(Template.fromstr(chunk))
         return TemplateCollection(*templates)
 
 
@@ -366,16 +367,23 @@ class Assembler:
 
     def __init__(self) -> None:
         self._asmsrc = ""
+        self._curstatic = 0
+
+    def nextstatic(self) -> str:
+        """Return the next static label."""
+        self._curstatic += 1
+        return f"LL{self._curstatic}"
 
     @property
     def asmsrc(self) -> str:
         """The assembler source text."""
         return self._asmsrc
 
-    def asm(self, text: str) -> None:
+    def asm(self, text: str, *, prepend_tab: bool = True) -> None:
         """Assemble one or more lines of text."""
+        prepend = "\t" if prepend_tab else ""
         for line in text.splitlines():
-            self._asmsrc += f"\t{line.strip()}"
+            self._asmsrc += f"{prepend}{line}\n"
 
     def deflabel(self, label: str) -> None:
         """Assemble a label definition."""
@@ -396,11 +404,51 @@ class Evaluator:
         self, assembler: Assembler, node: Node80, template: Template, reg: Reg
     ) -> None:
         """Assemble, nonrecursively, a single codegen template."""
-        raise NotImplementedError
+        code = template.code
+        if not code:
+            return
+        if "L1" in code or "D1" in code:
+            lab1 = assembler.nextstatic()
+        else:
+            lab1 = ""
+        code = "\t" + code.replace("\n", "\n\t")
+        valleft = node.left.value if node.left else None
+        valright = node.right.value if node.right else None
+        replacements = {
+            "\tD1": f"{lab1}:",
+            "D1": f"{lab1}:",
+            "L1": lab1,
+            "LV": valleft,
+            "RV": valright,
+            "V": node.value,
+            "GL": reg.name.lower()[1],
+            "G": reg.name.lower()[0],
+        }
+        pattern = "|".join(
+            [f"({repl})" for repl in sorted(replacements, key=len, reverse=True)]
+        )
+        code = re.sub(pattern, lambda m: str(replacements[m[0]]), code)
+        assembler.asm(code, prepend_tab=False)
 
     def _special(self, assembler: Assembler, node: Node80, template: Template) -> None:
         """Assemble recursively a special codegen template."""
-        raise NotImplementedError
+        match node.label:
+            case "brz":
+                assert node.left is not None
+                if node.left.label == "log":
+                    assert node.left.left is not None
+                    self._eval(assembler, node.left.left, Reg.HL)
+                else:
+                    self._eval(assembler, node.left, Reg.HL)
+                self._asmnode(assembler, node, template, Reg.HL)
+            case "call":
+                for child in reversed(template.children(node)):
+                    self._eval(assembler, child, Reg.HL)
+                self._asmnode(assembler, node, template, Reg.HL)
+            case _:
+                for child in template.children(node):
+                    self._eval(assembler, child, Reg.HL)
+                self._asmnode(assembler, node, template, Reg.HL)
 
     def _eval(self, assembler: Assembler, node: Node80, reg: Reg) -> None:
         """Assemble the node via the given assembler recursively, trying to
@@ -426,9 +474,14 @@ class Evaluator:
                 assert reg == Reg.HL
                 children = template.children(node)
                 assert len(children) == 2
-                cost = [self._templates.cost(child) for child in children]
+                cost = tuple(
+                    (
+                        self._templates.cost(child, reg)
+                        for child, reg in zip(children, Reg)
+                    )
+                )
                 assert len(cost) == 2
-                match tuple(cost):
+                match cost:
                     case (Cost.HL, Cost.ANY) | (Cost.ANY, Cost.ANY):
                         self._eval(assembler, children[0], Reg.HL)
                         self._eval(assembler, children[1], Reg.DE)
@@ -483,17 +536,11 @@ class Backend8080(shared.BackendABC[str], Assembler):
         super().__init__(source)
         self._templates = templates
         self._evaluator = Evaluator(self._templates)
-        self._curstatic = 0
 
     @property
     def templates(self) -> TemplateCollection:
         """Return the collection of templates."""
         return self._templates
-
-    def nextstatic(self) -> str:
-        """Return the next static label."""
-        self._curstatic += 1
-        return f"LL{self._curstatic}"
 
     def eval(self, node: shared.Node | Node80) -> None:
         """Assemble a shared backend node.
@@ -508,7 +555,7 @@ class Backend8080(shared.BackendABC[str], Assembler):
             case ".export":
                 pass
             case "useregs":
-                pass
+                self.asm("call csave")
             case "brz":
                 assert isinstance(args[0], str)
                 self.eval(
@@ -520,10 +567,10 @@ class Backend8080(shared.BackendABC[str], Assembler):
                 assert isinstance(args[0], str)
                 self.asm(f"jmp {args[0]}")
             case "retnull":
-                self.asm("ret")
+                self.asm("jmp cret")
             case "ret":
                 self.eval(self.nodestk.pop())
-                self.asm("ret")
+                self.asm("jmp cret")
             case ".text" | ".data" | ".bss" | ".string":
                 self.asm(cmd)
             case ".dw" | ".db" | ".df" | ".dd":
@@ -534,7 +581,8 @@ class Backend8080(shared.BackendABC[str], Assembler):
                 self.asm(f"{cmd} {','.join((str(arg) for arg in args))}")
             case "dropstk":
                 assert isinstance(args[0], int)
-                self.asm(f"lxi h,{args[0]}\ndad sp\nsphl")
+                if args[0]:
+                    self.asm(f"lxi h,{args[0]}\ndad sp\nsphl")
             case "goto":
                 self.eval(self.nodestk.pop())
                 self.asm("pchl")

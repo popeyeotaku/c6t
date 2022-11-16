@@ -137,7 +137,19 @@ none
 call cdiv
 
 sub
-hl skipright
+any skipright
+none
+name i 1
+dcx G
+
+sub
+any skipright
+none
+name i 2
+dcx G\ndcx G
+
+sub
+special skipright
 none
 name
 lxi d,-RV\ndad d
@@ -152,13 +164,13 @@ cload
 any skipleft
 name
 none
-mvi G,0\nlda LV\mov a,GL\nora a\nbpl L1\ndcr G\nD1
+mvi G,0\nlda LV\mov a,GL\nora a\njpl L1\ndcr G\nD1
 
 cload
 hl
 none
 none
-mov l,m\nmvi h,0\nmov a,l\nora a\nbpl L1\ndcr h\nD1
+mov l,m\nmvi h,0\nmov a,l\nora a\njpl L1\ndcr h\nD1
 
 load
 hl skipleft
@@ -199,7 +211,7 @@ mov a,l\nana e\nmov l,a\nmov a,h\nana d\nmov h,a
 mult
 hl skipright
 none
-con i 1
+name i 1
 
 
 mult
@@ -207,6 +219,18 @@ binary commute
 none
 none
 call cmult
+
+add
+hl skipright
+none
+name i 1
+inx h
+
+add
+hl skipright
+none
+name i 2
+inx h\ninx h
 
 add
 binary commute
@@ -224,7 +248,7 @@ assign
 binary
 none
 none
-mov e,m\ninx h\nmov d,m\nxchg
+mov m,e\ninx h\nmov m,d\nxchg
 
 call i 0
 special skipleft skipright
@@ -238,14 +262,56 @@ none
 none
 call ccall
 
+call i 1
+special skipleft
+name
+none
+call LV\npop d
+
+call i 2
+special skipleft
+name
+none
+call LV\npop d\npop d
+
+call i 3
+special skipleft
+name
+none
+call LV\npop d\npop d\npop d
+
 call
 special skipleft
 name
 none
 call LV\nxchg\nlxi h,V+V\ndad sp\nsphl\nxchg
 
+call i 1
+special
+none
+none
+call ccall\npop d
+
+call i 2
+special
+none
+none
+call ccall\npop d\npop d
+
+call i 3
+special
+none
+none
+call ccall\npop d\npop d\npop d
+
 call
 special
 none
 none
 call ccall\nxchg\nlxi h,V+V\ndad sp\nsphl\nxchg
+
+brz
+special
+none
+none
+mov a,l\nora h\njz V

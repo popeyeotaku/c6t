@@ -67,11 +67,11 @@ class TypeString:
             (TypeElem(elem) if isinstance(elem, Type) else elem for elem in elems)
         )
         if len(self._elems) < 1:
-            raise ValueError("must contain at least one TypeElem")
+            raise ValueError(f"must contain at least one TypeElem ({self._elems})")
         if self._elems[-1].label not in BASE:
-            raise ValueError("last element in TypeString must be base type")
+            raise ValueError(f"last element in TypeString must be base type ({self._elems})")
         if any((elem.label not in MOD for elem in self._elems[:-1])):
-            raise ValueError("all elements preceeding base type must be mod types")
+            raise ValueError(f"all elements preceeding base type must be mod types ({self._elems})")
 
     def __iter__(self) -> typing.Iterator[TypeElem]:
         return iter(self._elems)
