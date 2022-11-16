@@ -156,7 +156,8 @@ def special(state: ParseState, node: Node) -> bool:
             else:
                 size = 1
             state.asm("con", str(size))
-            state.asm(node.label.opcode)
+            opcode = typechar(node[0].typestr) + node.label.opcode
+            state.asm(opcode)
         case _:
             return False
     return True

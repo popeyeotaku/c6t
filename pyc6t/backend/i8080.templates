@@ -1,0 +1,251 @@
+log
+any
+none
+none
+mov a,G\nora GL\nlxi G,0\njz L1\ninx G\nD1
+
+lognot
+any
+none
+none
+mov a,G\nora GL\nlxi G,0\njnz L1\ninx G\nD1
+
+arg
+special
+none
+none
+push h
+
+auto
+hl
+none
+none
+lxi h,V\ndad b
+
+mod
+binary
+none
+none
+call cmod
+
+rshift
+binary
+none
+none
+call crshift
+
+lshift
+hl skipright
+none
+name i 1
+dad h
+
+lshift
+hl skipright
+none
+name i 2
+dad h\ndad h
+
+lshift
+hl skipright
+none
+name i 4
+dad h\ndad h\ndad h
+
+lshift
+hl skipright
+none
+name i 8
+dad h\ndad h\ndad h\ndad h
+
+lshift
+hl skipright
+none
+name i 16
+dad h\ndad h\ndad h\ndad h\ndad h
+
+lshift
+hl skipright
+none
+name i 32
+dad h\ndad h\ndad h\ndad h\ndad h\ndad h
+
+lshift
+binary
+none
+none
+call clshift
+
+null
+any
+none
+none
+
+
+ugequ
+binary
+none
+none
+call cugequ
+
+gequ
+binary
+none
+none
+call cgequ
+
+ulequ
+binary
+none
+none
+call culequ
+
+lequ
+binary
+none
+none
+call clequ
+
+ugreat
+binary
+none
+none
+call cugreat
+
+great
+binary
+none
+none
+call cgreat
+
+uless
+binary
+none
+none
+call culess
+
+less
+binary
+none
+none
+call cless
+
+div
+binary
+none
+none
+call cdiv
+
+sub
+hl skipright
+none
+name
+lxi d,-RV\ndad d
+
+sub
+binary
+none
+none
+mov a,l\nsub e\nmov l,a\nmov a,h\nsbb d\nmov h,a
+
+cload
+any skipleft
+name
+none
+mvi G,0\nlda LV\mov a,GL\nora a\nbpl L1\ndcr G\nD1
+
+cload
+hl
+none
+none
+mov l,m\nmvi h,0\nmov a,l\nora a\nbpl L1\ndcr h\nD1
+
+load
+hl skipleft
+name
+none
+lhld LV
+
+load
+hl
+none
+none
+mov a,m\ninx h\nmov h,m\nmov l,a
+
+name
+any
+none
+none
+lxi G,V
+
+eor
+binary commute
+none
+none
+mov a,l\nxra e\nmov l,a\nmov a,h\nxra d\nmov h,a
+
+or
+binary commute
+none
+none
+mov a,l\nora e\nmov l,a\nmov a,h\nora d\nmov h,a
+
+and
+binary commute
+none
+none
+mov a,l\nana e\nmov l,a\nmov a,h\nana d\nmov h,a
+
+mult
+hl skipright
+none
+con i 1
+
+
+mult
+binary commute
+none
+none
+call cmult
+
+add
+binary commute
+none
+none
+dad d
+
+assign
+hl skipleft
+name
+none
+shld LV
+
+assign
+binary
+none
+none
+mov e,m\ninx h\nmov d,m\nxchg
+
+call i 0
+special skipleft skipright
+name
+none
+call LV
+
+call i 0
+special skipright
+none
+none
+call ccall
+
+call
+special skipleft
+name
+none
+call LV\nxchg\nlxi h,V+V\ndad sp\nsphl\nxchg
+
+call
+special
+none
+none
+call ccall\nxchg\nlxi h,V+V\ndad sp\nsphl\nxchg
