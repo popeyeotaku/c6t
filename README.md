@@ -21,6 +21,9 @@ C6T is largely complete, requireing additional testing and support for more back
 * More specifically, the `.` operator requires the thing on its left to be an lvalue (an address or register), will add the offset of the member to it. The `->` operator works on any expression, and will 'rvalue' (load an address) whatever's on its left if it's an lvalue as usual.
 * Register variables may not have their address taken, or have member operations applied to them.
 * Static declared functions are not allowed; all externs are exported to the linker.
+* Assignment operators are reversed (`=+` instead of `+=`).
+* The only operators which support floating point are the comparisons `<`, `>`, `<=`, `>=`, `==`, `!=`; the assignment operator '=' (not other assignment operators like `=+`); the negation operator unary `-`; and the ordinary mathematical operators `+`,`-`,`*`,`/`.
+* The null pointer is defined as 0.
 
 ## C6T Specific Alterations
 
@@ -28,6 +31,12 @@ C6T is largely complete, requireing additional testing and support for more back
 * C6T refers to declarations as "specifiers" and identifiers as "names".
 * C6T *requires* exactly three integer-size register variables. If physical registers are not available, static/extern variables are to be used. It is not allowed to place them onto the auto stack.
 * On most C6T backends, it's expected that extern/static access is at least as fast as autos (probably faster), and register access is at least as fast as extern/statics. It is recommended that locals be placed in registers as much as possible, and non-recursive functions place remaining locals into statics.
+* C6T guarentees multiplications and divisions by constant powers of 2 will be converted to shift operations.
+* Right shifts are always sign-extending.
+* C6T defines modulo (`%`) as an unsigned operation, so that it can guarntee `%` something by a constant power of 2 will be transformed to `&` bitwise and'ing it by the power of 2 minus 1 (`% 4` becomes `& 3`).
+* C6T guarentees the layout of the stack frame: from the frame pointer position up: register var 2, register var 1, register var 0, the previous frame pointer, and the previous program counter. Any further platform-specific information must be placed above the arguments to a function call.
+* All C6T functions pass arguments on the stack. The stack is down-growing, and the first argument is at the lowest address, with further arguments above it. Because of this, you can implement varargs by getting the address of an argument. Arguments start above the stack frame (in other words, 10 bytes above the frame pointer).
+* C6T does not check the number or type of arguments; because of this, arguments not used by a function don't have to be passed even if specified.
 
 ## Included Programs
 

@@ -33,11 +33,11 @@ if executable.
 
 ## Symbol Table
 
-  struct symbol {
-          char name[9];
-          char class;
-          int value;
-  };
+        struct symbol {
+                char name[9];
+                char class;
+                int value;
+        };
 
 ### Symbol Classes
 
