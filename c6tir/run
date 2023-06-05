@@ -1,0 +1,6 @@
+yacc -v c6tir.y
+cc -O -c y.tab.c
+cc -O -c shared.c
+cc -O y.tab.o shared.o i8080.c t8080.c -ly
+mv a.out i8080
+rm *.o

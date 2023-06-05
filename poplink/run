@@ -1,0 +1,3 @@
+cc -O names.c;mv a.out names
+cc -O psize.c;mv a.out psize
+cc -O poplink.c ../tmpfil.c;mv a.out poplink

@@ -1,0 +1,214 @@
+#include "c6t.h"
+
+/* C6T - C version 6 by Troy - PART FIVE */
+
+/* This file contains tables related to the enumerated
+ * values in the header. There must be one entry from 0 to
+ * MAXENUM.
+ */
+
+char *enumtab[MAXENUM] {
+	"NULL",
+	"EOF",
+	"CON",
+	"FCON",
+	"NAME",
+	"STRING",
+	"INT",
+	"CHAR",
+	"FLOAT",
+	"DOUBLE",
+	"STRUCT",
+	"AUTO",
+	"EXTERN",
+	"REGISTER",
+	"STATIC",
+	"GOTO",
+	"RETURN",
+	"SIZEOF",
+	"BREAK",
+	"CONTINUE",
+	"IF",
+	"ELSE",
+	"FOR",
+	"DO",
+	"WHILE",
+	"SWITCH",
+	"CASE",
+	"DEFAULT",
+	"ENTRY",
+	"LBRACE",
+	"RBRACE",
+	"SEMICOLON",
+	"COMMA",
+	"ASSIGN",
+	"ASNADD",
+	"ASNSUB",
+	"ASNMULT",
+	"ASNDIV",
+	"ASNMOD",
+	"ASNRSHIFT",
+	"ASNLSHIFT",
+	"ASNAND",
+	"ANDEOR",
+	"ASNOR",
+	"QUEST",
+	"COLON",
+	"LOGOR",
+	"LOGAND",
+	"OR",
+	"EOR",
+	"AND",
+	"EQU",
+	"NEQU",
+	"LESS",
+	"GREAT",
+	"LEQU",
+	"GEQU",
+	"RSHIFT",
+	"LSHIFT",
+	"ADD",
+	"SUB",
+	"MULT",
+	"DIV",
+	"MOD",
+	"DEREF",
+	"ADDR",
+	"NEG",
+	"LOGNOT",
+	"COMPL",
+	"PREINC",
+	"PREDEC",
+	"POSTINC",
+	"POSTDEC",
+	"LPAREN",
+	"RPAREN",
+	"LBRACK",
+	"RBRACK",
+	"DOT",
+	"ARROW",
+	"CALL",
+	"ARG",
+	"MEMBER",
+	"TOFLT",
+	"TOINT",
+	"CODE",
+	"DATA",
+	"BSS",
+	"ULESS",
+	"UGREAT",
+	"ULEQU",
+	"UGEQU",
+};
+
+int optab[MAXENUM] {
+	0,
+	OPUNARY,	/* EOF */
+	OPLEAF|OPISINT,	/* CON */
+	OPYESFLT|OPLEAF,	/* FCON */
+	OPLEAF|OPYESFLT,	/* NAME */
+	OPLEAF,	/* STRING */
+	0,	/* INT */
+	0,	/* CHAR */
+	0,	/* FLOAT */
+	0,	/* DOUBLE */
+	0,	/* STRUCT */
+	0,	/* AUTO */
+	0,	/* EXTERN */
+	0,	/* REGISTER */
+	0,	/* STATIC */
+	0,	/* GOTO */
+	0,	/* RETURN */
+	OPUNARY|OPISINT,	/* SIZEOF */
+	0,	/* BREAK */
+	0,	/* CONTINUE */
+	0,	/* IF */
+	0,	/* ELSE */
+	0,	/* FOR */
+	0,	/* DO */
+	0,	/* WHILE */
+	0,	/* SWITCH */
+	0,	/* CASE */
+	0,	/* DEFAULT */
+	0,	/* ENTRY */
+	0,	/* LBRACE */
+	0,	/* RBRACE */
+	0,	/* SEMICOLON */
+	OPTYRIGHT,	/* COMMA */
+	OPASSIGN|OPTYRIGHT|OPYESFLT|OPNEEDLVAL,	/* ASSIGN */
+	OPASSIGN|OPTYRIGHT|OPNEEDLVAL|OPPNTCONV,	/* ASNADD */
+	OPASSIGN|OPTYRIGHT|OPNEEDLVAL|OPPNTCONV,	/* ASNSUB */
+	OPASSIGN|OPTYRIGHT|OPNEEDLVAL,	/* ASNMULT */
+	OPASSIGN|OPTYRIGHT|OPNEEDLVAL,	/* ASNDIV */
+	OPASSIGN|OPTYRIGHT|OPNEEDLVAL,	/* ASNMOD */
+	OPASSIGN|OPTYRIGHT|OPNEEDLVAL,	/* ASNRSHIFT */
+	OPASSIGN|OPTYRIGHT|OPNEEDLVAL,	/* ASNLSHIFT */
+	OPASSIGN|OPTYRIGHT|OPNEEDLVAL,	/* ASNAND */
+	OPASSIGN|OPTYRIGHT|OPNEEDLVAL,	/* ASNEOR */
+	OPASSIGN|OPTYRIGHT|OPNEEDLVAL,	/* ASNOR */
+	OPTYRIGHT,	/* QUEST */
+	0,	/* COLON */
+	OPISINT,	/* LOGOR */
+	OPISINT,	/* LOGAND */
+	0,	/* OR */
+	0,	/* EOR */
+	0,	/* AND */
+	OPYESFLT|OPFLTCONV,	/* EQU */
+	OPYESFLT|OPFLTCONV,	/* NEQU */
+	OPYESFLT|OPFLTCONV,	/* LESS */
+	OPYESFLT|OPFLTCONV,	/* GREAT */
+	OPYESFLT|OPFLTCONV,	/* LEQU */
+	OPYESFLT|OPFLTCONV,	/* GEQU */
+	0,	/* RSHIFT */
+	0,	/* LSHIFT */
+	OPYESFLT|OPFLTCONV|OPPNTCONV,	/* ADD */
+	OPYESFLT|OPFLTCONV|OPPNTCONV,	/* SUB */
+	OPYESFLT|OPFLTCONV,	/* MULT */
+	OPYESFLT|OPFLTCONV,	/* DIV */
+	0,	/* MOD */
+	OPDEREF|OPYESFLT|OPUNARY,	/* DEREF */
+	OPINCREF|OPYESFLT|OPUNARY|OPNEEDLVAL,	/* ADDR */
+	OPYESFLT|OPUNARY,	/* NEG */
+	OPISINT|OPUNARY,	/* LOGNOT */
+	OPUNARY,	/* COMPL */
+	OPUNARY|OPNEEDLVAL|OPTYLEFT,	/* PREINC */
+	OPUNARY|OPNEEDLVAL|OPTYLEFT,	/* PREDEC */
+	OPUNARY|OPNEEDLVAL|OPTYLEFT,	/* POSTINC */
+	OPUNARY|OPNEEDLVAL|OPTYLEFT,	/* POSTDEC */
+	0,	/* LPAREN */
+	0,	/* RPAREN */
+	0,	/* LBRACK */
+	0,	/* RBRACK */
+	OPNEEDLVAL|OPYESFLT,	/* DOT */
+	OPYESFLT,	/* ARROW */
+	OPYESFLT|OPTYLEFT|OPDEREF,	/* CALL */
+	OPYESFLT,	/* ARG */
+	0,	/* MEMBER */
+	OPUNARY|OPYESFLT,	/* TOFLT */
+	OPUNARY|OPISINT,	/* TOINT */
+	0,	/* CODE */
+	0,	/* DATA */
+	0,	/* BSS */
+	0,	/* ULESS */
+	0,	/* UGREAT */
+	0,	/* ULEQU */
+	0,	/* UGEQU */
+};
+
+/* Return a string matching the enumeration number.
+ */
+enumstr(i)
+{
+	if (i < 0 || i >= MAXENUM)
+		crash("BAD ENUM %l", i);
+	return (enumtab[i]);
+}
+
+/* Return informational flags on a given operator.
+ */
+opinfo(op)
+{
+	if (op < 0 || op >= MAXENUM)
+		crash("BAD OPERATOR NUMBER %l", op);
+	return (optab[op]);
+}
