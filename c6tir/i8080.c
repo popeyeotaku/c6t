@@ -204,25 +204,21 @@ asmtree(cnode, reg)
 			asmtree(n->nright, HL);
 			break;
 		case QUEST:
-			asmtree(n->nleft);
+			asmtree(n->nleft, HL);
 			test(HL);
 			badsides = ++nextstatic;
 			t = ++nextstatic;
 			printf("jz LL%l\n", badsides);
-			asmtree(n->nright->nleft);
+			asmtree(n->nright->nleft, HL);
 			printf("jmp LL%l\n", t);
 			printf("LL%l:", badsides);
-			asmtree(n->nright->nright);
+			asmtree(n->nright->nright, HL);
 			printf("LL%l:", t);
 			break;
-		case PREINC:
-		case PREDEC:
-		case POSTINC:
-		case POSTDEC:
-		case CPREINC:
-		case CPREDEC:
-		case CPOSTINC:
-		case CPOSTDEC:
+		case PRE:
+		case POST:
+		case CPRE:
+		case CPOST:
 			asmtree(n->nleft, HL);
 			asmtempl(n, t, HL);
 			break;

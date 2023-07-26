@@ -1,6 +1,15 @@
+echo YACC
 yacc -v c6tir.y
 cc -O -c y.tab.c
+echo SHARED
 cc -O -c shared.c
+: echo PDP11
+: cc -O y.tab.o shared.o pdp11.c -ly
+: mv a.out pdp11
+: echo C6TVM
+: cc -O y.tab.o shared.o c6tvm.c -ly
+: mv a.out c6tvm
+echo 8080
 cc -O y.tab.o shared.o i8080.c t8080.c -ly
 mv a.out i8080
 rm *.o

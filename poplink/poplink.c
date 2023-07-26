@@ -326,7 +326,6 @@ concat()
 
 	if (fopen(otname, &objbuf) < 0)
 		fcrash();
-
 	while ((c = getc(&objbuf)) >= 0)
 		putc(c, &outbuf);
 	close(objbuf.fdesc);
@@ -386,12 +385,14 @@ dosegs(seg)
 	if (seg == ATEXT)
 		header.artext = linkpos;
 	else
-		header.ardata = linkpos - header.artext;
+		header.ardata = linkpos;
+	linkpos = 0;
 }
 
 do1seg(seg, fnum)
 {
-	register char *pc, *nextlink, *endpc;
+	register char *pc, *endpc;
+	register nextlink;
 	static char *oldpc;
 	static c;
 
@@ -402,6 +403,12 @@ do1seg(seg, fnum)
 	if (nextlink != -1) nextlink =+ pc;
 
 	while (pc != endpc) {
+		if (pc > endpc) {
+			printf("OUT OF SYNC, PAST END OF SEGMENT");
+			unlink(ltname);
+			unlink(otname);
+			abort();
+		}
 		if (nextlink != -1 && pc == nextlink) {
 			oldpc = pc;
 			pc =+ dolink(seg, fnum);
@@ -481,7 +488,6 @@ dolink(seg, fnum)
 			abort();
 		}
 
-outundef:
 		undefs++;
 		putw(linkpc - prevlink, &outlink);
 		prevlink = linkpc;
@@ -502,6 +508,7 @@ outundef:
 	}
 output:
 	putw(linkpc - prevlink, &outlink);
+	prevlink = linkpc;
 	linkpos =+ 2;
 	putc(hilo, &outlink);
 	if (hilo == AHI) {
@@ -529,6 +536,7 @@ report()
 	register struct asym *sym;
 	register headered, class;
 
+	if (xflag) return;
 	headered = 0;
 	for (sym = symtab; sym < &symtab[SYMTAB]; sym++) {
 		if (!sym->aname[0]) continue;

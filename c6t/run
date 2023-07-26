@@ -1,3 +1,2 @@
 cc -O c6t?.c
 rm *.o
-mv a.out c6t

@@ -1,2 +1,1 @@
 cc -O cpp.c
-mv a.out cpp

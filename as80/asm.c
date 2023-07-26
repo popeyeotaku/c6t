@@ -122,6 +122,8 @@ needabs(exp) int *exp;
 eval(op, left, right)
 int left[], right[];
 {
+	register i;
+
 	switch (op) {
 	default:
 	bad:
@@ -141,6 +143,10 @@ int left[], right[];
 		left[1] =+ right[1];
 		return (left);
 	case '-':
+		/* allow backward reference relative within a segment */
+		if (i=chkrel(left,right))
+			return (i);
+
 		if (left[0] != EABS) {
 			if (needabs(right)) return (left);
 			left[2] =- right[1];
@@ -158,6 +164,56 @@ int left[], right[];
 		left[1] =/ right[1];
 		return (left);
 	}
+}
+
+chk1rel(exprpnt, segdest, valdest) int *exprpnt, *segdest, *valdest;
+{
+	if (exprpnt[0] == ESEG) {
+		*segdest = exprpnt[1];
+		*valdest = exprpnt[2];
+		return (1);
+	}
+	if (exprpnt[0] == EOFFSET) {
+		*segdest = exprpnt[1]->aclass&0377&~AEXPORT;
+		if (*segdest == PCOMMON)
+			*segdest = 0;
+		*valdest = exprpnt[2]+exprpnt[1]->aval;
+		return (1);
+	}
+	return (0);
+}
+
+chkrel(left, right) int left[], right[];
+{
+	static lseg, lval, rseg, rval;
+
+	if (!chk1rel(left, &lseg, &lval) || !chk1rel(right, &rseg, &rval))
+		return (0);
+	if (!lseg && !rseg)
+		return (0);
+
+	if (lseg == rseg)
+		return (econ(lval-rval));
+	if (!lseg && left[0] == EOFFSET)
+		return (erel(rseg, -rval, left[1]));
+	if (!rseg && right[0] == EOFFSET)
+		return (erel(lseg, -lval, right[1]));
+
+	return (0);
+}
+
+erel(seg, val, sym)
+{
+	register *pnt;
+
+
+	pnt = exppnt;
+	putexp(EREL);
+	putexp(seg);
+	putexp(val);
+	putexp(sym);
+
+	return (pnt);
 }
 
 /* Make an expression into a hi or lo byte */
@@ -212,7 +268,7 @@ main(argc, argv) char **argv;
 
 	goseg(PTEXT);
 
-	opinit();	/* local optimizations (place register labels
+	opinit();	/* local init (place register labels
 			 * into symbol table for 8080, etc.)
 			 */
 
@@ -379,6 +435,9 @@ expbyte(expression)
 	case ESEG:
 		putbyte(seglink(hilo, exp[1], exp[2]));
 		break;
+	case EREL:
+		putbyte(segrel(hilo, exp));
+		break;
 	default:
 		crash("bad exp %l", exp[0]);
 	}
@@ -409,6 +468,9 @@ expword(expression)
 			break;
 		}
 		break;
+	case EREL:
+		val = segrel(hilo, exp);
+		goto postlink;
 	case ESEG:
 		val = seglink(hilo, exp[1], exp[2]);
 		goto postlink;
@@ -424,6 +486,41 @@ postlink:
 		crash("BAD EXPRESSION %o", exp[0]);
 	}
 }
+
+segrel(hilo, exp) int exp[];
+{
+	register value;
+	register char *nampnt, c;
+
+	value = exp[2];
+	if (curseg == PBSS) return (value);
+
+	putw(*curpc - *prevlink, &linkbuf);
+	*curlink =+ 2;
+	*prevlink = *curpc;
+
+	putc(hilo, &linkbuf);
+	*curlink =+ 1;
+	if (hilo == AHI) {
+		putc(value, &linkbuf);
+		*curlink =+ 1;
+		value = (value>>8)&0377;
+	} else if (hilo == ALO) value = value&0377;
+
+	putc(PREL, &linkbuf);
+	putc(exp[1], &linkbuf);
+	*curlink =+ 2;
+
+	nampnt = exp[3]->aname;
+	do {
+		c = *nampnt++&0377;
+		putc(c, &linkbuf);
+		*curlink =+ 1;
+	} while (c);
+
+	return (value);
+}
+
 
 needargs(count)
 {
@@ -497,6 +594,7 @@ putlink(hilo, symbol, value)
 seglink(hilo, seg, val)
 {
 	if (curseg == PBSS) return (val);
+
 	putw(*curpc - *prevlink, &linkbuf);
 	*curlink =+ 2;
 	*prevlink = *curpc;
@@ -622,10 +720,13 @@ concat()
 {
 	goseg(PTEXT);
 	putw(-1, &linkbuf);
+	*curlink =+ 2;
 	goseg(PDATA);
 	putw(-1, &linkbuf);
+	*curlink =+ 2;
 	goseg(PSTRING);
 	putw(-1, &linkbuf);
+	*curlink =+ 2;
 
 	close(creat("a.out.80", 0666));
 	outbuf.fnum = open("a.out.80", 1);
@@ -750,6 +851,8 @@ outseg(seg)
 	}
 
 	while (pc != endpc) {
+		if (pc > endpc)
+			crash("PAST END OF SEGMENT");
 		if (nextlink != -1 && nextlink == pc) {
 			oldpc = pc;
 			pc =+ fixlink(pc);
@@ -778,8 +881,60 @@ fixlink(pc)
 
 	class = getc(&linkbuf);
 
-	if (!class) return (fixundef(pc, hilo, value));
+	if (class == PREL) return (fixrel(pc, hilo, value));
+	else if (!class) return (fixundef(pc, hilo, value));
 	else return (fixseg(pc, hilo, class, value));
+}
+
+fixrel(pc, hilo, value)
+{
+	static class, symclass;
+	register i, c, *sym;
+	static char name[ANAME];
+
+	class = getc(&linkbuf);
+
+	i = 0;
+	while (c = getc(&linkbuf))
+		if (i < ANAME-1) name[i++] = c;
+	name[i] = 0;
+
+	sym = lookup(name);
+	if (!sym) {
+notdef:
+		yyerror("bad expr: %s must be defined in this object", name);
+		goto done;
+	}
+
+	symclass = sym->aclass&0377&~AEXPORT;
+	if (!symclass) goto notdef;
+
+	if (symclass != class) {
+		yyerror("bad expr: %s in wrong segment", name);
+		yyerror("(should be %o)", class);
+		yyerror("(is %o)", sym->aclass&0377&~AEXPORT);
+		errcount =- 2;
+		goto done;
+	}
+
+	value = sym->aval + value;
+	/* this is an absolute value w/o need of link info,
+	 * since the start of the segment + a constant -
+	 * the start of the segment, remvoes the
+	 * segment's start from the equation entirely.
+	 */
+done:
+	switch (hilo) {
+	case AHI:
+		putc((value>>8)&0377, &outbuf);
+		return (1);
+	case ALO:
+		putc(value&0377, &outbuf);
+		return (1);
+	default:
+		putw(value, &outbuf);
+		return (2);
+	}
 }
 
 fixseg(pc, hilo, class, value)

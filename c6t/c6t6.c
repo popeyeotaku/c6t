@@ -135,9 +135,11 @@ outnode(npnt)
 	case POSTINC:
 	case POSTDEC:
 		i = ispnt(n->nleft) ? sizenext(&n->nleft->ntype) : 1;
-		printf("%c%e %l\n",
+		if (n->nlab == PREDEC || n->nlab == POSTDEC)
+			i = -i;
+		printf("%c%s %l\n",
 			typechar(&n->nleft->ntype),
-			n->nlab,
+			n->nlab >= POSTINC ? "POST" : "PRE",
 			i
 		);
 		break;

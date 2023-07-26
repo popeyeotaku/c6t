@@ -1,2 +1,1 @@
 cc -O cc6t.c ../tmpfil.c
-mv a.out cc6t

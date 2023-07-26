@@ -12,9 +12,12 @@ struct aheader header;
 names(file)
 {
 	register char *class;
+	extern fout;
 
 	if (read(file, &header, sizeof(header)) != sizeof(header)) {
 bad:
+		flush();
+		fout = 2;
 		printf("\nbad file\n");
 		exit(1);
 	}
@@ -47,6 +50,8 @@ bad:
 			class = "undef";
 			break;
 		default:
+			flush();
+			fout = 2;
 			printf("bad class %o\n", class);
 			goto bad;
 		}
@@ -67,6 +72,9 @@ char **argv;
 {
 	register file;
 	register char *pnt;
+	extern fout;
+
+	fout = dup(1);	/* buffer output */
 
 	if (argc > 1 && argv[1][0] == '-') {
 		--argc; ++argv;
@@ -97,6 +105,8 @@ char **argv;
 		if (file < 0) exit(1);
 		names(file);
 	}
+
+	flush();
 }
 
 useek(file, offset) char *offset;

@@ -1,3 +1,10 @@
+echo dlinks
+cc -O dlinks.c;mv a.out dlinks
+echo names
 cc -O names.c;mv a.out names
+echo psize
 cc -O psize.c;mv a.out psize
-cc -O poplink.c ../tmpfil.c;mv a.out poplink
+echo tocom
+cc -O tocom.c
+mv a.out tocom
+cc -O poplink.c ../tmpfil.c

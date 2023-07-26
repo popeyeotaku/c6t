@@ -1,4 +1,3 @@
 yacc -v as80.y
-cc -O y.tab.c asm.c opcode.c pseudo.c ../tmpfil.o -ly
-mv a.out as80
+cc -O y.tab.c asm.c opcode.c pseudo.c ../tmpfil.c -ly
 rm *.o

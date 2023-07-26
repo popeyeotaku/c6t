@@ -21,6 +21,7 @@ int argland[ARGLAND], *argpnt;
 #define EOFFSET 1	/* EOFFSET sympnt con, the symbol + the con */
 #define EHILO 2	/* EHILO hilo epnt */
 #define ESEG 3	/* ESEG segnum offset */
+#define EREL 4	/* EREL relative within a seg */
 
 int errcount;
 
@@ -57,3 +58,4 @@ struct putget {
 #define PDS 9
 #define PABS 10	/* not a real pseudo, used for symbol classes */
 #define PSEG 11	/* same here */
+#define PREL 12	/* same here */

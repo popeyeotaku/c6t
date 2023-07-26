@@ -42,8 +42,8 @@ main(argc, argv) char **argv;
 		do {
 			inline();
 			if (line[0] == '#') {
-				command();
 				putchar('\n');
+				command();
 			} else outline();
 		} while (!eof);
 	}
@@ -59,7 +59,9 @@ getchar()
 		peekc = 0;
 		return (c);
 	}
-	if (eof) return;
+
+	if (eof) return (0);
+
 	if (incbuf[0]) {
 		c = getc(incbuf);
 		if (c < 0) {
@@ -78,35 +80,64 @@ getchar()
 
 inline()
 {
-	register c, prevc;
 	register char *pnt;
-	static char inquote;
+	register c;
+	register escaped;
+	static char inquote, incomment;
 
 	pnt = line;
 
 	while (c = getchar()) {
-		if (!inquote && c == '/' && (peekc = getchar()) == '*') {
-			peekc = prevc = 0;
-			while (c = getchar()) {
-				if (prevc == '*' && c == '/') {
-					c = ' ';
-					break;
-				}
-				if (c == '\n')
-					if (pnt < &line[LINE-1]) *pnt++ = c;
-				prevc = c;
+		/* special cases */
+		switch (c) {
+		case '\\':
+			if ((peekc=getchar())=='\n') {
+				peekc=0;
+				c = '\n';
 			}
-			if (!c) break;
+			else if (inquote && (peekc=getchar())==inquote) {
+				escaped++;
+			}
+			break;
+		case '\n':
+			/* special case of preceeding slash accounted
+			 * for above
+			 */
+			goto done;
+		case '/':
+			if (!inquote && !incomment && (peekc=getchar())=='*') {
+				peekc = 0;
+				incomment++;
+			}
+			break;
+		case '*':
+			if (incomment && (peekc=getchar())=='/') {
+				peekc = 0;
+				incomment = 0;
+				continue;
+			}
+			break;
+		case '"':
+		case '\'':
+			if (!inquote && !incomment) inquote = c;
+			else if (inquote == c) {
+				if (escaped) escaped = 0;
+				else inquote = 0;
+			}
+			break;
 		}
-		if (!(pnt > line && pnt[-1] == '\\')) {
-			if (c == '\n') break;
-			else if (inquote && c == inquote)
-				inquote = 0;
-			else if (!inquote && (c == '\'' || c == '"'))
-				inquote = c;
+		if (pnt < &line[LINE-1]) {
+			if (incomment && c != '\n') {
+				/* comments are replaced w/ spaces */
+				c = ' ';
+				/* remove chaining comment spaces */
+				if (pnt > line && pnt[-1] == ' ')
+					continue;
+			}
+			*pnt++ = c;
 		}
-		if (pnt < &line[LINE-1]) *pnt++ = c;
 	}
+done:
 	*pnt = 0;
 }
 
@@ -121,13 +152,11 @@ outline()
 	while (c = *pnt++) {
 		if (c == '\'' || c == '"') {
 			putchar(c);
-			while (*pnt) {
-				putchar(*pnt);
-				if (*pnt == c && pnt[-1] != '\\') {
-					pnt++;
-					break;
-				}
+			while (i = *pnt) {
 				pnt++;
+				putchar(i);
+				if (i == c && pnt[-2] != '\\')
+					break;
 			}
 		}
 		else if (alpha(c)) {
@@ -314,11 +343,11 @@ dodef()
 		}
 		else if (c == '\'' || c == '"') {
 			putmac(c);
-			while (*cmdline) {
-				putmac(*cmdline);
-				if (*cmdline == c && cmdline[-1] != '\\')
-					break;
+			while (i = *cmdline) {
 				cmdline++;
+				putmac(i);
+				if (i == c && cmdline[-2] != '\\')
+					break;
 			}
 		}
 		else putmac(c);

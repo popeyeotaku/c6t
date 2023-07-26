@@ -143,6 +143,8 @@ cleanup()
 
 	argcount = 0;
 	for (sympnt = symtab; sympnt <= &symtab[SYMTAB]; sympnt++) {
+		if (!sympnt->sname[0])
+			continue;
 		if (sympnt->sflags&SUNDEF) {
 			error("undefined symbol %n", sympnt->sname);
 			sympnt->sname[0] = 0;

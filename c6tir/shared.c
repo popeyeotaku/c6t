@@ -107,14 +107,10 @@ struct kwinfo {
 	"LOGNOT", LOGNOT,
 	"LOG", LOG,
 	"COMPL", COMPL,
-	"PREINC", PREINC,
-	"PREDEC", PREDEC,
-	"POSTINC", POSTINC,
-	"POSTDEC", POSTDEC,
-	"CPREINC", CPREINC,
-	"CPREDEC", CPREDEC,
-	"CPOSTINC", CPOSTINC,
-	"CPOSTDEC", CPOSTDEC,
+	"PRE", PRE,
+	"POST", POST,
+	"CPRE", CPRE,
+	"CPOST", CPOST,
 	"CALL", CALL,
 	"ARG", ARG,
 	"TOFLT", TOFLT,
@@ -315,14 +311,10 @@ char childtab[] {
 	1,	/* LOG */
 	1,	/* COMPL */
 	0,	/* REG */
-	1,	/* PREINC */
-	1,	/* PREDEC */
-	1,	/* POSTINC */
-	1,	/* POSTDEC */
-	1,	/* CPREINC */
-	1,	/* CPREDEC */
-	1,	/* CPOSTINC */
-	1,	/* CPOSTDEC */
+	1,	/* PRE */
+	1,	/* POST */
+	1,	/* CPRE */
+	1,	/* CPOST */
 	2,	/* CALL */
 	2,	/* ARG */
 	1,	/* TOFLT */
@@ -707,17 +699,11 @@ cmdoptim(cmd, args, n)
 	switch (cmd) {
 	case EVAL:
 		switch (n->nlab) {
-		case POSTINC:
-			n->nlab = PREINC;
+		case POST:
+			n->nlab = PRE;
 			break;
-		case POSTDEC:
-			n->nlab = PREDEC;
-			break;
-		case CPOSTINC:
-			n->nlab = CPREINC;
-			break;
-		case CPOSTDEC:
-			n->nlab = CPREDEC;
+		case CPOST:
+			n->nlab = CPRE;
 			break;
 		}
 		break;

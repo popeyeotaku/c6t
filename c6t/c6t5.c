@@ -50,7 +50,7 @@ char *enumtab[MAXENUM] {
 	"ASNRSHIFT",
 	"ASNLSHIFT",
 	"ASNAND",
-	"ANDEOR",
+	"ASNEOR",
 	"ASNOR",
 	"QUEST",
 	"COLON",

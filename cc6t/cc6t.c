@@ -7,14 +7,11 @@ extern int _ntemp;
 #define NTNAME 2
 char tname[NTNAME][TNAMELEN];
 
-/* Replace these with the locations of these files on your given system. */
 char cpp[] "/home/troy/cpp/a.out";
 char frontend[] "/home/troy/c6t/a.out";
 char backend[] "/home/troy/c6tir/i8080";
 char as[] "/home/troy/as80/a.out";
 char ld[] "/home/troy/poplink/a.out";
-
-/* The output filename produced by as80/poplink. */
 char outname[] "a.out.80";
 
 #define NARGS 64
@@ -58,7 +55,7 @@ main(argc, argv) char **argv;
 		case 'c':
 			cc(arg);
 			break;
-		case 'a':
+		case 's':
 			ss(arg);
 			break;
 		default:

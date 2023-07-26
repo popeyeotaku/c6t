@@ -33,11 +33,11 @@ if executable.
 
 ## Symbol Table
 
-        struct symbol {
-                char name[9];
-                char class;
-                int value;
-        };
+struct symbol {
+        char name[9];
+        char class;
+        int value;
+};
 
 ### Symbol Classes
 
@@ -76,13 +76,13 @@ segment to the new offset for the start of that segment.
                 /* char name[9] if class == 0 */
         };      /* if hilo == 1 */
 
-* offset:       number of bytes from the previous relocchunk (starting
+* offset: number of bytes from the previous relocchunk (starting
         at the start of the segment (text/data)).
         An offset of -1/all bits set indicates the end of the relocation block.
-* hilo:         Indicates 0 for 26bit relocation, 1 for 8bit relocation of the low
+* hilo: Indicates 0 for 26bit relocation, 1 for 8bit relocation of the low
         byte, and 1 for 8bit relocation of the high byte.
         If =1/the hibyte is indicated, it is followed by the low byte
         of the full 16bit offset in the segment data, of which only the high
         8 bits are present.
-* class:        Same value as in the symbol table. If =0=undefined, the name
+* class: Same value as in the symbol table. If =0=undefined, the name
         will follow.

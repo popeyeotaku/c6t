@@ -122,7 +122,11 @@ datainit(sym)
 
 	if (curtype.tystr == (TYARRAY|TYCHAR) && match(STRING)) {
 		dumpstr();
-		curtype.tyarray = addsize(tlen+1);
+		elems = sizeland[curtype.tyarray]&0377;
+		if (elems > tlen+1)
+			printf("STORAGE %l\n", elems-(tlen+1));
+		else
+			curtype.tyarray = addsize(tlen+1);
 	}
 	else {
 		t = curtype.tystr;

@@ -1,4 +1,4 @@
-%token NAME CON PSEUDO OPCODE
+%token NAME CON PSEUDO COMMON EXPORT OPCODE
 
 %left '+' '-'
 %left '*' '/'
@@ -92,10 +92,26 @@ cmd :
 	= {
 		pseudo($1);
 	}
+	| EXPORT explist
+	| COMMON NAME ',' expr
+	= {
+		pcommon($2, $4);
+	}
 	| op
 	| NAME '=' expr
 	= {
 		setequ($1, $3);
+	}
+	;
+
+explist :
+	NAME
+	= {
+		pexport($1);
+	}
+	| explist ',' NAME
+	= {
+		pexport($3);
 	}
 	;
 
@@ -132,6 +148,8 @@ argtail :
 #include "asm.h"
 
 char peekc;
+
+int pstkn[] { PSEUDO, COMMON, EXPORT } ;
 
 yylex()
 {
@@ -176,8 +194,8 @@ yylex()
 		peekc = c;
 		nbuf[i] = 0;
 
-		if (nbuf[0] == '.' && grabpseudo(nbuf, &yylval))
-			return (PSEUDO);
+		if (nbuf[0] == '.' && (i = grabpseudo(nbuf, &yylval)))
+			return (pstkn[i-1]);
 		if (grabop(nbuf, &yylval))
 			return (OPCODE);
 		yylval = lookup(nbuf);

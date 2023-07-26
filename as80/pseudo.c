@@ -31,7 +31,11 @@ int *dest;
 	for (tabpnt = pstab; tabname = tabpnt->tname; tabpnt++) {
 		if (casecmp(name, tabname)) {
 			*dest = tabpnt->tval;
-			return (1);
+			switch (tabpnt->tval) {
+				default: return (1);
+				case PCOMMON: return (2);
+				case PEXPORT: return (3);
+			}
 		}
 	}
 
@@ -81,4 +85,19 @@ pseudo(ps)
 	default:
 		crash("BAD PSEUDO %o", ps);
 	}
+}
+
+pexport(name)
+{
+	name->aclass =| AEXPORT;
+}
+
+pcommon(name, expr)
+{
+	register *sym;
+
+	if (redef(sym = name)) return;
+
+	sym->aclass = AEXPORT|PCOMMON;
+	sym->aval = umax(sym->aval, expabs(expr));
 }
